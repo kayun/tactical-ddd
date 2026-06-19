@@ -3,7 +3,20 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "nx": "nx"
+    "nx": "nx",
+    "test": "nx run-many -t test --max-parallel 3 --passWithNoTests --exclude=@tactical-ddd/nx-e2e",
+    "generators:e2e": "nx run @tactical-ddd/nx-e2e:e2e",
+    "lint:fix": "nx run-many -t lint --max-parallel 3 --fix",
+    "format:fix": "nx format:write",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,html,md,less,scss,json,yml}": [
+      "prettier --write"
+    ],
+    "**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
@@ -22,12 +35,14 @@
     "@types/jest": "30.0.0",
     "@types/node": "20.19.9",
     "eslint": "8.57.1",
+    "husky": "9.1.7",
     "jest": "30.3.0",
     "jest-environment-jsdom": "30.3.0",
     "jest-environment-node": "30.3.0",
     "jest-util": "30.3.0",
     "jiti": "2.4.2",
     "jsonc-eslint-parser": "2.4.2",
+    "lint-staged": "16.4.0",
     "nx": "23.0.0",
     "prettier": "3.8.4",
     "ts-jest": "29.4.11",
@@ -37,6 +52,9 @@
     "typescript-eslint": "8.61.1",
     "verdaccio": "6.7.2",
     "vite": "8.0.16"
+  },
+  "dependencies": {
+    "@nx/devkit": "23.0.0"
   },
   "workspaces": [
     "packages/*"
@@ -53,8 +71,5 @@
         }
       }
     }
-  },
-  "dependencies": {
-    "@nx/devkit": "23.0.0"
   }
 }
