@@ -1,0 +1,37 @@
+{
+  "name": "@tactical-ddd/source",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "nx": "nx"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@nx/eslint": "23.0.0",
+    "@nx/eslint-plugin": "23.0.0",
+    "@nx/js": "23.0.0",
+    "@nx/plugin": "^23.0.0",
+    "@nx/vite": "23.0.0",
+    "@nx/web": "23.0.0",
+    "@swc-node/register": "1.11.1",
+    "@swc/core": "1.15.8",
+    "@swc/helpers": "0.5.18",
+    "@types/node": "20.19.9",
+    "eslint": "8.57.1",
+    "jiti": "2.4.2",
+    "jsonc-eslint-parser": "2.4.2",
+    "nx": "23.0.0",
+    "prettier": "3.8.4",
+    "tslib": "2.8.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.61.1",
+    "vite": "8.0.16"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "nx": {
+    "includedScripts": [],
+    "targets": {}
+  }
+}
