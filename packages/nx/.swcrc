@@ -19,7 +19,7 @@
   },
   "sourceMaps": true,
   "exclude": [
-    "jest.config.[ct]s",
+    "jest.config.[cj]s",
     ".*\\.spec.tsx?$",
     ".*\\.test.tsx?$",
     "./src/jest-setup.ts$",

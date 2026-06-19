@@ -2,20 +2,19 @@
   "name": "@tactical-ddd/nx",
   "version": "0.0.0",
   "type": "commonjs",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "@tactical-ddd/source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
     }
   },
   "files": [
-    "dist",
+    "**/*",
     "!**/*.tsbuildinfo"
   ],
   "nx": {
@@ -27,7 +26,7 @@
           "{options.outputPath}"
         ],
         "options": {
-          "outputPath": "packages/nx/dist",
+          "outputPath": "dist/packages/nx",
           "main": "packages/nx/src/index.ts",
           "tsConfig": "packages/nx/tsconfig.lib.json",
           "skipTypeCheck": true,
@@ -44,6 +43,18 @@
               "output": "."
             }
           ]
+        }
+      },
+      "prepare-publish": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/packages/nx/package.json"
+        ],
+        "options": {
+          "command": "node tools/scripts/sync-publish-package-json.mjs packages/nx dist/packages/nx"
         }
       }
     }

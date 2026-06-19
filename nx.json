@@ -54,9 +54,16 @@
     }
   ],
   "release": {
-    "projects": ["*", "!@tactical-ddd/source"],
+    "projects": ["packages/*", "!@tactical-ddd/nx-e2e"],
     "version": {
-      "preVersionCommand": "npx nx run-many -t build"
+      "manifestRootsToUpdate": ["{projectRoot}", "dist/{projectRoot}"],
+      "preVersionCommand": "npx nx run-many -t build && npx nx run-many -t prepare-publish"
+    },
+    "releaseTag": {
+      "pattern": "release/v{version}"
+    },
+    "git": {
+      "commitMessage": "chore(release): v{version}"
     }
   },
   "targetDefaults": {
@@ -70,6 +77,13 @@
     },
     "e2e": {
       "dependsOn": ["^build"]
+    },
+    "nx-release-publish": {
+      "executor": "@nx/js:release-publish",
+      "dependsOn": ["prepare-publish"],
+      "options": {
+        "packageRoot": "dist/packages/nx"
+      }
     }
   },
   "analytics": true
