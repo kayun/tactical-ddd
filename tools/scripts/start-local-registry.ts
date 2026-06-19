@@ -8,7 +8,39 @@
 
 import { startLocalRegistry } from '@nx/js/plugins/jest/local-registry';
 import { releasePublish, releaseVersion } from 'nx/release';
-import { rmSync } from 'fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'fs';
+import { join } from 'path';
+
+/**
+ * Captures the current contents of every packages/&#42;/package.json so they can
+ * be restored after the e2e release. `releaseVersion` writes the e2e specifier
+ * (0.0.0-e2e) into the source manifests (via `manifestRootsToUpdate`), which we
+ * do not want left behind in the committed sources — only the published
+ * artifacts under dist should carry the e2e version.
+ */
+function snapshotPackageManifests(): Map<string, string> {
+  const packagesDir = join(process.cwd(), 'packages');
+  const snapshots = new Map<string, string>();
+  for (const name of readdirSync(packagesDir)) {
+    const manifestPath = join(packagesDir, name, 'package.json');
+    if (existsSync(manifestPath)) {
+      snapshots.set(manifestPath, readFileSync(manifestPath, 'utf-8'));
+    }
+  }
+  return snapshots;
+}
+
+function restorePackageManifests(snapshots: Map<string, string>): void {
+  snapshots.forEach((content, manifestPath) => {
+    writeFileSync(manifestPath, content);
+  });
+}
 
 export default async () => {
   // local registry target to run
@@ -33,18 +65,26 @@ export default async () => {
     };
   })();
 
-  await releaseVersion({
-    specifier: '0.0.0-e2e',
-    stageChanges: false,
-    gitCommit: false,
-    gitTag: false,
-    firstRelease: true,
-    versionActionsOptionsOverrides: {
-      skipLockFileUpdate: true,
-    },
-  });
-  await releasePublish({
-    tag: 'e2e',
-    firstRelease: true,
-  });
+  // The e2e version bump must not be persisted to the source manifests, so we
+  // snapshot them and restore them once publishing is done. The package is
+  // published from dist, which keeps the e2e version.
+  const manifestSnapshots = snapshotPackageManifests();
+  try {
+    await releaseVersion({
+      specifier: '0.0.0-e2e',
+      stageChanges: false,
+      gitCommit: false,
+      gitTag: false,
+      firstRelease: true,
+      versionActionsOptionsOverrides: {
+        skipLockFileUpdate: true,
+      },
+    });
+    await releasePublish({
+      tag: 'e2e',
+      firstRelease: true,
+    });
+  } finally {
+    restorePackageManifests(manifestSnapshots);
+  }
 };
