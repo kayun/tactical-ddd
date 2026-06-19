@@ -5,11 +5,7 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: [
-      '**/dist',
-      '**/build',
-      '**/vite.config.*.timestamp*',
-    ],
+    ignores: ['**/dist', '**/build', '**/vite.config.*.timestamp*'],
   },
   {
     files: ['**/*.ts', '**/*.js'],
@@ -35,5 +31,13 @@ export default [
     ],
     // Override or add rules here
     rules: {},
+  },
+  {
+    files: ['**/*.json'],
+    // Override or add rules here
+    rules: {},
+    languageOptions: {
+      parser: await import('jsonc-eslint-parser'),
+    },
   },
 ];

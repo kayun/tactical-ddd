@@ -49,3 +49,4 @@ vite.config.*.timestamp*
 .nx/polygraph
 .nx/self-healing
 .nx/migrate-runs
+test-output

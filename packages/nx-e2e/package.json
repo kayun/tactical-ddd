@@ -1,0 +1,27 @@
+{
+  "name": "@tactical-ddd/nx-e2e",
+  "version": "0.0.0-e2e",
+  "private": true,
+  "nx": {
+    "projectType": "application",
+    "sourceRoot": "packages/nx-e2e/src",
+    "implicitDependencies": [
+      "@tactical-ddd/nx"
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "@nx/jest:jest",
+        "outputs": [
+          "{projectRoot}/test-output/jest/coverage"
+        ],
+        "dependsOn": [
+          "^build"
+        ],
+        "options": {
+          "jestConfig": "packages/nx-e2e/jest.config.js",
+          "runInBand": true
+        }
+      }
+    }
+  }
+}
