@@ -1,6 +1,12 @@
 {
   "name": "@tactical-ddd/nx",
   "version": "0.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "Artyom Kayun",
+    "email": "kayun.artem@gmail.com",
+    "url": "https://github.com/kayun"
+  },
   "type": "commonjs",
   "main": "./index.js",
   "module": "./index.js",
@@ -40,6 +46,11 @@
             {
               "input": "./packages/nx/src",
               "glob": "**/*.d.ts",
+              "output": "."
+            },
+            {
+              "input": "./packages/nx",
+              "glob": "LICENSE",
               "output": "."
             }
           ]
