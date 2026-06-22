@@ -1,0 +1,3 @@
+## 0.0.1-alpha.0 (2026-06-22)
+
+This was a version bump only, there were no code changes.
