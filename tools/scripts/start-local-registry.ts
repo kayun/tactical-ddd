@@ -8,6 +8,7 @@
 
 import { startLocalRegistry } from '@nx/js/plugins/jest/local-registry';
 import { releasePublish, releaseVersion } from 'nx/release';
+import { execSync } from 'child_process';
 import {
   existsSync,
   readdirSync,
@@ -16,6 +17,44 @@ import {
   writeFileSync,
 } from 'fs';
 import { join } from 'path';
+
+/** Port the local verdaccio registry listens on (Nx default). */
+const REGISTRY_PORT = 4873;
+
+/**
+ * Frees the local registry port if an orphaned verdaccio is still holding it.
+ *
+ * A previous e2e run that was killed from the IDE (so jest's globalTeardown
+ * never ran) leaves verdaccio listening on {@link REGISTRY_PORT}. The next run
+ * then can't bind the port and hangs until the jest timeout. Reclaim it up
+ * front so the run starts cleanly. No-op when the port is free.
+ */
+function freeRegistryPort(): void {
+  let pids: string;
+  try {
+    pids = execSync(`lsof -nP -iTCP:${REGISTRY_PORT} -sTCP:LISTEN -t`, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    // lsof exits non-zero when nothing is listening — the happy path.
+    return;
+  }
+
+  if (!pids) return;
+
+  console.warn(
+    `Local registry port ${REGISTRY_PORT} is busy (orphaned verdaccio from a previous run?). Killing PID(s): ${pids.replace(/\n/g, ', ')}`,
+  );
+  for (const pid of pids.split('\n')) {
+    try {
+      process.kill(Number(pid));
+    } catch {
+      // Process already gone — ignore.
+    }
+  }
+}
 
 /**
  * Captures the current contents of every packages/&#42;/package.json so they can
@@ -43,6 +82,10 @@ function restorePackageManifests(snapshots: Map<string, string>): void {
 }
 
 export default async () => {
+  // Reclaim the port from an orphaned registry (e.g. an IDE-killed run) so we
+  // don't hang waiting to bind it.
+  freeRegistryPort();
+
   // local registry target to run
   const localRegistryTarget = '@tactical-ddd/source:local-registry';
   // storage folder for the local registry

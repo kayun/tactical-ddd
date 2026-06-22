@@ -1,20 +1,18 @@
 import { execSync } from 'child_process';
-import { join, dirname } from 'path';
-import { mkdirSync, rmSync } from 'fs';
+import { rmSync } from 'fs';
+
+import { createTestProject } from './test-utils';
+
+// Scaffolding a workspace and installing the plugin is slow.
+jest.setTimeout(600_000);
 
 describe('@tactical-ddd/nx', () => {
   let projectDirectory: string;
 
   beforeAll(() => {
-    projectDirectory = createTestProject();
-
-    // The plugin has been built and published to a local registry in the jest globalSetup
-    // Install the plugin built with the latest source code into the test repo
-    execSync(`npm install -D @tactical-ddd/nx@e2e`, {
-      cwd: projectDirectory,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    // createTestProject builds the workspace and installs @tactical-ddd/nx@e2e
+    // from the local registry started in the jest globalSetup.
+    projectDirectory = createTestProject('test-project');
   });
 
   afterAll(() => {
@@ -35,33 +33,3 @@ describe('@tactical-ddd/nx', () => {
     });
   });
 });
-
-/**
- * Creates a test project with create-nx-workspace and installs the plugin
- * @returns The directory where the test project was created
- */
-function createTestProject() {
-  const projectName = 'test-project';
-  const projectDirectory = join(process.cwd(), 'tmp', projectName);
-
-  // Ensure projectDirectory is empty
-  rmSync(projectDirectory, {
-    recursive: true,
-    force: true,
-  });
-  mkdirSync(dirname(projectDirectory), {
-    recursive: true,
-  });
-
-  execSync(
-    `npx create-nx-workspace@latest ${projectName} --preset apps --nxCloud=skip --no-interactive`,
-    {
-      cwd: dirname(projectDirectory),
-      stdio: 'inherit',
-      env: process.env,
-    },
-  );
-  console.log(`Created test project in "${projectDirectory}"`);
-
-  return projectDirectory;
-}
