@@ -21,7 +21,8 @@
   },
   "files": [
     "**/*",
-    "!**/*.tsbuildinfo"
+    "!**/*.tsbuildinfo",
+    "generators.json"
   ],
   "nx": {
     "sourceRoot": "packages/nx/src",
@@ -52,6 +53,11 @@
               "input": "./packages/nx",
               "glob": "LICENSE",
               "output": "."
+            },
+            {
+              "input": "./packages/nx",
+              "glob": "generators.json",
+              "output": "."
             }
           ]
         }
@@ -71,6 +77,9 @@
     }
   },
   "dependencies": {
+    "@nx/devkit": "^22.0.0 || ^23.0.0",
+    "@nx/js": "^22.0.0 || ^23.0.0",
     "@swc/helpers": "~0.5.18"
-  }
+  },
+  "generators": "./generators.json"
 }

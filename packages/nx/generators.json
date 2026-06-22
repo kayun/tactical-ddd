@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "shared-kernel": {
+      "factory": "./src/generators/shared-kernel/shared-kernel",
+      "schema": "./src/generators/shared-kernel/schema.json",
+      "description": "Shared kernel domain"
+    }
+  }
+}

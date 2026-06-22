@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "SharedKernelGenerator",
+  "title": "Tactical DDD: Shared Kernel Generator",
+  "type": "object",
+  "properties": {
+    "directory": {
+      "type": "string",
+      "description": "Root folder for the shared kernel (it is recommended to keep libs/shared)",
+      "default": "libs/shared",
+      "x-prompt": "Which directory should the Shared Kernel be generated into?"
+    }
+  },
+  "required": ["directory"]
+}
