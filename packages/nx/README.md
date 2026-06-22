@@ -22,6 +22,29 @@ nx g @tactical-ddd/nx:shared-kernel
 
 The generator checks for the existence of libraries before creating them, making it safe to run multiple times to restore missing kernel layers.
 
+## Options
+
+| Option           | Type     | Default       | Required | Description                                                                                       |
+| ---------------- | -------- | ------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `directory`      | `string` | `libs/shared` | Yes      | Root folder the shared kernel libraries are generated into. Keeping `libs/shared` is recommended. |
+| `prefix`         | `string` | —             | No       | Organization prefix used for the generated import paths, e.g. `@my-org`.                          |
+| `linter`         | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                         |
+| `unitTestRunner` | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                      |
+| `bundler`        | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.    |
+
+When run interactively (or via Nx Console), the generator prompts for any required option that is not passed on the command line. Example with explicit flags:
+
+```bash
+nx g @tactical-ddd/nx:shared-kernel \
+  --directory=libs/shared \
+  --prefix=@my-org \
+  --linter=eslint \
+  --unitTestRunner=jest \
+  --bundler=none
+```
+
+> Note: the `contracts` library is always generated without a unit test runner — it holds only compile-time types — regardless of the `unitTestRunner` value, which applies to `utils` and `infrastructure`.
+
 ## Architecture & Folder Structure
 
 The generator creates three core libraries inside the `libs/shared/` directory:

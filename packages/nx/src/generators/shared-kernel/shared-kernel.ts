@@ -17,10 +17,14 @@ export async function sharedKernelGenerator(
     console.log(`Creating contracts library at ${contractsRoot}...`);
 
     await libraryGenerator(tree, {
-      name: 'contracts',
+      name: options.prefix
+        ? `${options.prefix}/shared-contracts`
+        : 'shared-contracts',
       directory: contractsRoot,
       useProjectJson: false,
       unitTestRunner: 'none',
+      bundler: options.bundler,
+      linter: options.linter,
       tags: `${LibraryScope.Shared},${LibraryType.Contracts}`,
     });
   } else {
@@ -31,9 +35,12 @@ export async function sharedKernelGenerator(
     console.log(`Creating utils library at ${utilsRoot}...`);
 
     await libraryGenerator(tree, {
-      name: 'utils',
+      name: options.prefix ? `${options.prefix}/shared-utils` : 'shared-utils',
       directory: utilsRoot,
       useProjectJson: false,
+      unitTestRunner: options.unitTestRunner,
+      bundler: options.bundler,
+      linter: options.linter,
       tags: `${LibraryScope.Shared},${LibraryType.Utils}`,
     });
   } else {
@@ -44,9 +51,14 @@ export async function sharedKernelGenerator(
     console.log(`Creating infrastructure library at ${infrastructureRoot}...`);
 
     await libraryGenerator(tree, {
-      name: 'infrastructure',
+      name: options.prefix
+        ? `${options.prefix}/shared-infrastructure`
+        : 'shared-infrastructure',
       directory: infrastructureRoot,
       useProjectJson: false,
+      unitTestRunner: options.unitTestRunner,
+      bundler: options.bundler,
+      linter: options.linter,
       tags: `${LibraryScope.Shared},${LibraryType.Infrastructure}`,
     });
   } else {
