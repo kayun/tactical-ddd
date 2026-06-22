@@ -57,7 +57,7 @@
     "projects": ["packages/*", "!@tactical-ddd/nx-e2e"],
     "version": {
       "manifestRootsToUpdate": ["{projectRoot}", "dist/{projectRoot}"],
-      "preVersionCommand": "npx nx run-many -t build && npx nx run-many -t prepare-publish"
+      "preVersionCommand": "npx nx run-many -t build"
     },
     "releaseTag": {
       "pattern": "release/v{version}"
@@ -80,7 +80,7 @@
     },
     "nx-release-publish": {
       "executor": "@nx/js:release-publish",
-      "dependsOn": ["prepare-publish"],
+      "dependsOn": ["build"],
       "options": {
         "packageRoot": "dist/packages/nx"
       }

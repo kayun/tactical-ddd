@@ -28,6 +28,18 @@
     "sourceRoot": "packages/nx/src",
     "targets": {
       "build": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "compile"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/packages/nx"
+        ],
+        "options": {
+          "command": "node tools/scripts/sync-publish-package-json.mjs packages/nx dist/packages/nx"
+        }
+      },
+      "compile": {
         "executor": "@nx/js:swc",
         "outputs": [
           "{options.outputPath}"
@@ -60,18 +72,6 @@
               "output": "."
             }
           ]
-        }
-      },
-      "prepare-publish": {
-        "executor": "nx:run-commands",
-        "dependsOn": [
-          "build"
-        ],
-        "outputs": [
-          "{workspaceRoot}/dist/packages/nx/package.json"
-        ],
-        "options": {
-          "command": "node tools/scripts/sync-publish-package-json.mjs packages/nx dist/packages/nx"
         }
       }
     }
