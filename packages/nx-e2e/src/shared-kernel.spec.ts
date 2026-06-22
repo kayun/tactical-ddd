@@ -16,7 +16,7 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
 
   const runGenerator = () =>
     execSync(
-      'npx nx g @tactical-ddd/nx:shared-kernel --directory=libs/shared --no-interactive',
+      'npx nx g @tactical-ddd/nx:shared-kernel --directory=libs/shared --linter=eslint --unitTestRunner=jest --no-interactive',
       { cwd: projectDirectory, stdio: 'inherit', env: process.env },
     );
 

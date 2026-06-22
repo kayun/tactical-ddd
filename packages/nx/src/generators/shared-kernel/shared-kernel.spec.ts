@@ -1,5 +1,5 @@
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Tree, readProjectConfiguration } from '@nx/devkit';
+import { Tree, readProjectConfiguration, getProjects } from '@nx/devkit';
 
 import { sharedKernelGenerator } from './shared-kernel';
 import { SharedKernelGeneratorSchema } from './schema';
@@ -19,134 +19,264 @@ jest.mock('prettier', () => ({
 
 describe('shared-kernel generator', () => {
   let tree: Tree;
-  const options: SharedKernelGeneratorSchema = { directory: 'libs/shared' };
+
+  const baseOptions: SharedKernelGeneratorSchema = {
+    directory: 'libs/shared',
+    linter: 'eslint',
+    unitTestRunner: 'jest',
+    bundler: 'none',
+  };
+
+  // The three kernel layers: generated project name, library root and type tag.
+  const LAYERS = [
+    {
+      project: 'shared-contracts',
+      root: 'libs/shared/contracts',
+      type: LibraryType.Contracts,
+    },
+    {
+      project: 'shared-utils',
+      root: 'libs/shared/utils',
+      type: LibraryType.Utils,
+    },
+    {
+      project: 'shared-infrastructure',
+      root: 'libs/shared/infrastructure',
+      type: LibraryType.Infrastructure,
+    },
+  ] as const;
 
   beforeEach(() => {
     tree = createTreeWithEmptyWorkspace();
   });
 
   it('should run successfully', async () => {
-    await expect(sharedKernelGenerator(tree, options)).resolves.not.toThrow();
+    await expect(
+      sharedKernelGenerator(tree, baseOptions),
+    ).resolves.not.toThrow();
   });
 
   describe('library creation', () => {
     beforeEach(async () => {
-      await sharedKernelGenerator(tree, options);
+      await sharedKernelGenerator(tree, baseOptions);
     });
 
-    it('should create the contracts library at libs/shared/contracts', () => {
-      const config = readProjectConfiguration(tree, 'contracts');
+    it.each(LAYERS)(
+      'creates the $project library at $root',
+      ({ project, root }) => {
+        const config = readProjectConfiguration(tree, project);
 
-      expect(config).toBeDefined();
-      expect(config.root).toBe('libs/shared/contracts');
-    });
+        expect(config).toBeDefined();
+        expect(config.root).toBe(root);
+      },
+    );
 
-    it('should create the utils library at libs/shared/utils', () => {
-      const config = readProjectConfiguration(tree, 'utils');
+    it('creates exactly the three kernel libraries', () => {
+      const names = [...getProjects(tree).keys()].sort();
 
-      expect(config).toBeDefined();
-      expect(config.root).toBe('libs/shared/utils');
-    });
-
-    it('should create the infrastructure library at libs/shared/infrastructure', () => {
-      const config = readProjectConfiguration(tree, 'infrastructure');
-
-      expect(config).toBeDefined();
-      expect(config.root).toBe('libs/shared/infrastructure');
+      expect(names).toEqual(
+        ['shared-contracts', 'shared-infrastructure', 'shared-utils'].sort(),
+      );
     });
   });
 
   describe('nx tags', () => {
     beforeEach(async () => {
-      await sharedKernelGenerator(tree, options);
+      await sharedKernelGenerator(tree, baseOptions);
     });
 
-    it('should tag contracts with scope:shared and type:contracts', () => {
-      const { tags } = readProjectConfiguration(tree, 'contracts');
+    it.each(LAYERS)(
+      'tags $project with scope:shared and its layer type',
+      ({ project, type }) => {
+        const { tags } = readProjectConfiguration(tree, project);
 
-      expect(tags).toEqual(
-        expect.arrayContaining([LibraryScope.Shared, LibraryType.Contracts]),
-      );
-    });
+        expect(tags).toEqual(
+          expect.arrayContaining([LibraryScope.Shared, type]),
+        );
+      },
+    );
 
-    it('should tag utils with scope:shared and type:utils', () => {
-      const { tags } = readProjectConfiguration(tree, 'utils');
-
-      expect(tags).toEqual(
-        expect.arrayContaining([LibraryScope.Shared, LibraryType.Utils]),
-      );
-    });
-
-    it('should tag infrastructure with scope:shared and type:infrastructure', () => {
-      const { tags } = readProjectConfiguration(tree, 'infrastructure');
-
-      expect(tags).toEqual(
-        expect.arrayContaining([
-          LibraryScope.Shared,
-          LibraryType.Infrastructure,
-        ]),
-      );
-    });
-
-    it('should never tag any shared library with scope:domain', () => {
-      for (const project of ['contracts', 'utils', 'infrastructure']) {
+    it('never tags any shared library with scope:domain', () => {
+      for (const { project } of LAYERS) {
         const { tags } = readProjectConfiguration(tree, project);
         expect(tags).not.toContain(LibraryScope.Domain);
       }
     });
   });
 
-  describe('contracts library configuration', () => {
-    beforeEach(async () => {
-      await sharedKernelGenerator(tree, options);
+  describe('directory option', () => {
+    it('generates the libraries under the provided directory', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        directory: 'libs/platform',
+      });
+
+      expect(readProjectConfiguration(tree, 'shared-contracts').root).toBe(
+        'libs/platform/contracts',
+      );
+      expect(readProjectConfiguration(tree, 'shared-utils').root).toBe(
+        'libs/platform/utils',
+      );
+      expect(readProjectConfiguration(tree, 'shared-infrastructure').root).toBe(
+        'libs/platform/infrastructure',
+      );
+    });
+  });
+
+  describe('prefix option', () => {
+    it('prefixes the library names when a prefix is given', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        prefix: '@my-org',
+      });
+
+      const names = [...getProjects(tree).keys()].sort();
+
+      expect(names).toEqual(
+        [
+          '@my-org/shared-contracts',
+          '@my-org/shared-infrastructure',
+          '@my-org/shared-utils',
+        ].sort(),
+      );
     });
 
-    it('should generate contracts without a unit test runner', () => {
-      const config = readProjectConfiguration(tree, 'contracts');
+    it('uses unprefixed names when no prefix is given', async () => {
+      await sharedKernelGenerator(tree, baseOptions);
 
-      expect(config.targets?.['test']).toBeUndefined();
+      expect(() =>
+        readProjectConfiguration(tree, 'shared-contracts'),
+      ).not.toThrow();
+    });
+  });
 
-      // No test config should be emitted, regardless of the workspace's module
-      // setup (jest.config may resolve to .ts/.mts/.cts/.js/.cjs, and Vitest uses
-      // vite.config.*) — so assert none of those exist rather than a single name.
-      const testConfigFiles = tree
-        .children('libs/shared/contracts')
-        .filter((file) => /^(jest|vite)\.config\.[mc]?[jt]s$/.test(file));
+  describe('unitTestRunner option', () => {
+    it('always generates contracts without a test target', async () => {
+      // contracts holds only compile-time types, so it is hard-coded to 'none'
+      // regardless of the requested runner.
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        unitTestRunner: 'jest',
+      });
 
-      expect(testConfigFiles).toEqual([]);
+      const { targets } = readProjectConfiguration(tree, 'shared-contracts');
+      expect(targets?.['test']).toBeUndefined();
+    });
+
+    it('adds a test target to utils and infrastructure when jest is selected', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        unitTestRunner: 'jest',
+      });
+
+      expect(
+        readProjectConfiguration(tree, 'shared-utils').targets?.['test'],
+      ).toBeDefined();
+      expect(
+        readProjectConfiguration(tree, 'shared-infrastructure').targets?.[
+          'test'
+        ],
+      ).toBeDefined();
+    });
+
+    it('adds no test target anywhere when the runner is none', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        unitTestRunner: 'none',
+      });
+
+      for (const { project } of LAYERS) {
+        expect(
+          readProjectConfiguration(tree, project).targets?.['test'],
+        ).toBeUndefined();
+      }
+    });
+  });
+
+  describe('linter option', () => {
+    it('adds a lint target to every layer when eslint is selected', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        linter: 'eslint',
+      });
+
+      for (const { project } of LAYERS) {
+        expect(
+          readProjectConfiguration(tree, project).targets?.['lint'],
+        ).toBeDefined();
+      }
+    });
+
+    it('adds no lint target when the linter is none', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        linter: 'none',
+      });
+
+      for (const { project } of LAYERS) {
+        expect(
+          readProjectConfiguration(tree, project).targets?.['lint'],
+        ).toBeUndefined();
+      }
+    });
+  });
+
+  describe('bundler option', () => {
+    it('adds a build target to every layer when a bundler is selected', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        bundler: 'tsc',
+      });
+
+      for (const { project } of LAYERS) {
+        expect(
+          readProjectConfiguration(tree, project).targets?.['build'],
+        ).toBeDefined();
+      }
+    });
+
+    it('adds no build target when the bundler is none', async () => {
+      await sharedKernelGenerator(tree, {
+        ...baseOptions,
+        bundler: 'none',
+      });
+
+      for (const { project } of LAYERS) {
+        expect(
+          readProjectConfiguration(tree, project).targets?.['build'],
+        ).toBeUndefined();
+      }
     });
   });
 
   describe('idempotency', () => {
-    it('should be safe to run multiple times without throwing', async () => {
-      await sharedKernelGenerator(tree, options);
+    it('is safe to run multiple times without throwing', async () => {
+      await sharedKernelGenerator(tree, baseOptions);
 
-      await expect(sharedKernelGenerator(tree, options)).resolves.not.toThrow();
+      await expect(
+        sharedKernelGenerator(tree, baseOptions),
+      ).resolves.not.toThrow();
     });
 
-    it('should not duplicate or recreate libraries that already exist', async () => {
-      await sharedKernelGenerator(tree, options);
+    it('does not recreate or overwrite libraries that already exist', async () => {
+      await sharedKernelGenerator(tree, baseOptions);
 
-      // Mark the existing contracts source so we can detect an unwanted overwrite.
       const sentinel = 'libs/shared/contracts/src/sentinel.ts';
       tree.write(sentinel, 'export const sentinel = true;');
 
-      await sharedKernelGenerator(tree, options);
+      await sharedKernelGenerator(tree, baseOptions);
 
-      // The pre-existing library must be left untouched.
       expect(tree.exists(sentinel)).toBe(true);
-      expect(readProjectConfiguration(tree, 'contracts').root).toBe(
+      expect(readProjectConfiguration(tree, 'shared-contracts').root).toBe(
         'libs/shared/contracts',
       );
     });
 
-    it('should keep exactly one project per layer after repeated runs', async () => {
-      await sharedKernelGenerator(tree, options);
-      await sharedKernelGenerator(tree, options);
+    it('keeps exactly one project per layer after repeated runs', async () => {
+      await sharedKernelGenerator(tree, baseOptions);
+      await sharedKernelGenerator(tree, baseOptions);
 
-      for (const project of ['contracts', 'utils', 'infrastructure']) {
-        expect(() => readProjectConfiguration(tree, project)).not.toThrow();
-      }
+      expect(getProjects(tree).size).toBe(LAYERS.length);
     });
   });
 });

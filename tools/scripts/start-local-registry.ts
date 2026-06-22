@@ -81,6 +81,40 @@ function restorePackageManifests(snapshots: Map<string, string>): void {
   });
 }
 
+const NPMRC_PATH = join(process.cwd(), '.npmrc');
+
+/**
+ * Pins the `@tactical-ddd` scope to the local registry for the duration of the
+ * e2e publish and returns the original `.npmrc` content (or `null` if there was
+ * none) so it can be restored afterwards.
+ *
+ * The committed `.npmrc` points `@tactical-ddd:registry` at the public npm
+ * registry for real releases; that scoped override beats the default registry
+ * set by `startLocalRegistry`, so without this the e2e publish would push to
+ * npmjs.org instead of the local verdaccio.
+ */
+function overrideScopedRegistry(registry: string): string | null {
+  const original = existsSync(NPMRC_PATH)
+    ? readFileSync(NPMRC_PATH, 'utf-8')
+    : null;
+
+  const lines = (original ?? '')
+    .split('\n')
+    .filter((line) => !/^\s*@tactical-ddd:registry=/.test(line));
+  lines.push(`@tactical-ddd:registry=${registry}`);
+
+  writeFileSync(NPMRC_PATH, lines.join('\n'));
+  return original;
+}
+
+function restoreNpmrc(original: string | null): void {
+  if (original === null) {
+    rmSync(NPMRC_PATH, { force: true });
+  } else {
+    writeFileSync(NPMRC_PATH, original);
+  }
+}
+
 export default async () => {
   // Reclaim the port from an orphaned registry (e.g. an IDE-killed run) so we
   // don't hang waiting to bind it.
@@ -112,6 +146,10 @@ export default async () => {
   // snapshot them and restore them once publishing is done. The package is
   // published from dist, which keeps the e2e version.
   const manifestSnapshots = snapshotPackageManifests();
+  // Redirect the scoped registry to the local one for the publish (see above).
+  const localRegistry =
+    process.env.npm_config_registry ?? `http://localhost:${REGISTRY_PORT}`;
+  const originalNpmrc = overrideScopedRegistry(localRegistry);
   try {
     await releaseVersion({
       specifier: '0.0.0-e2e',
@@ -129,5 +167,6 @@ export default async () => {
     });
   } finally {
     restorePackageManifests(manifestSnapshots);
+    restoreNpmrc(originalNpmrc);
   }
 };

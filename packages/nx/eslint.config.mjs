@@ -9,6 +9,10 @@ export default [
         'error',
         {
           ignoredFiles: ['{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}'],
+          // `@swc/helpers` is a runtime dependency injected by the SWC build
+          // (`externalHelpers: true` emits `require("@swc/helpers/...")`), so it
+          // never appears as an import in the source the rule scans.
+          ignoredDependencies: ['@swc/helpers'],
         },
       ],
     },
