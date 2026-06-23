@@ -1,6 +1,12 @@
 {
   "name": "@tactical-ddd/react",
   "version": "0.0.1",
+  "license": "MIT",
+  "author": {
+    "name": "Artyom Kayun",
+    "email": "kayun.artem@gmail.com",
+    "url": "https://github.com/kayun"
+  },
   "type": "module",
   "main": "./index.js",
   "module": "./index.js",
@@ -16,5 +22,36 @@
   "files": [
     "**/*",
     "!**/*.tsbuildinfo"
-  ]
+  ],
+  "nx": {
+    "sourceRoot": "packages/react/src",
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "compile"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/packages/react"
+        ],
+        "options": {
+          "command": "node tools/scripts/sync-publish-package-json.mjs packages/react dist/packages/react"
+        }
+      },
+      "compile": {
+        "executor": "@nx/vite:build",
+        "outputs": [
+          "{workspaceRoot}/dist/packages/react"
+        ],
+        "options": {
+          "outputPath": "dist/packages/react"
+        }
+      },
+      "nx-release-publish": {
+        "options": {
+          "packageRoot": "dist/packages/react"
+        }
+      }
+    }
+  }
 }
