@@ -1,3 +1,15 @@
+## 0.0.2-alpha.0 (2026-06-23)
+
+### 🚀 Features
+
+- **react:** add initial setup for @tactical-ddd/react library with Nx configuration, build tools, and testing setup ([1568bdb](https://github.com/kayun/tactical-ddd/commit/1568bdb))
+- **react:** add MIT license, author details, and publish asset copying to @tactical-ddd/react configuration ([82d334c](https://github.com/kayun/tactical-ddd/commit/82d334c))
+- **react:** add `createComposeProviders` utility with tests, documentation, and README updates ([59864bd](https://github.com/kayun/tactical-ddd/commit/59864bd))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.0.1-alpha.3 (2026-06-23)
 
 ### 🚀 Features
