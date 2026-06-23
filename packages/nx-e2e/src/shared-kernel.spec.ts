@@ -76,6 +76,71 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
     expect(testConfig).toEqual([]);
   });
 
+  describe('generated source files', () => {
+    const contractsSrc = (...segments: string[]) =>
+      join(layerRoot('contracts'), 'src', ...segments);
+
+    it('removes the default placeholder lib file from contracts', () => {
+      expect(existsSync(contractsSrc('lib', 'shared-contracts.ts'))).toBe(
+        false,
+      );
+    });
+
+    it('scaffolds the contracts interface source files', () => {
+      expect(
+        existsSync(
+          contractsSrc('lib', 'interfaces', 'http-client.interface.ts'),
+        ),
+      ).toBe(true);
+      expect(
+        existsSync(contractsSrc('lib', 'interfaces', 'store.interface.ts')),
+      ).toBe(true);
+    });
+
+    it('barrel-exports both interfaces from the contracts index', () => {
+      const index = readFileSync(contractsSrc('index.ts'), 'utf-8');
+
+      expect(index).toContain('http-client.interface');
+      expect(index).toContain('store.interface');
+    });
+
+    it('uses module-format-aware import extensions in the contracts index', () => {
+      // The generator keys the `.js` extension off the library's resolved
+      // module format, whose most direct signal is package.json `"type"`. The
+      // barrel must agree with whatever create-nx-workspace emitted, so derive
+      // the expectation from the manifest rather than hard-coding ESM or CJS.
+      const isEsm = readLibManifest('contracts').type === 'module';
+      const index = readFileSync(contractsSrc('index.ts'), 'utf-8');
+
+      if (isEsm) {
+        expect(index).toContain("'./lib/interfaces/http-client.interface.js'");
+        expect(index).toContain("'./lib/interfaces/store.interface.js'");
+      } else {
+        expect(index).toContain("'./lib/interfaces/http-client.interface'");
+        expect(index).not.toContain('.interface.js');
+      }
+    });
+
+    it.each([
+      ['utils', 'shared-utils'],
+      ['infrastructure', 'shared-infrastructure'],
+    ])(
+      'leaves an empty barrel and no placeholder in the "%s" library',
+      (layer, placeholder) => {
+        const libDir = join(layerRoot(layer), 'src', 'lib');
+
+        expect(existsSync(join(libDir, `${placeholder}.ts`))).toBe(false);
+        expect(existsSync(join(libDir, `${placeholder}.spec.ts`))).toBe(false);
+        expect(
+          readFileSync(
+            join(layerRoot(layer), 'src', 'index.ts'),
+            'utf-8',
+          ).trim(),
+        ).toBe('');
+      },
+    );
+  });
+
   it('is idempotent — re-running the generator succeeds', () => {
     expect(() => runGenerator()).not.toThrow();
 
