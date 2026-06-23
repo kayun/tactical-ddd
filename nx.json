@@ -56,8 +56,8 @@
   "release": {
     "projects": ["packages/*", "!@tactical-ddd/nx-e2e"],
     "version": {
-      "manifestRootsToUpdate": ["{projectRoot}", "dist/{projectRoot}"],
-      "preVersionCommand": "npx nx run-many -t build"
+      "preVersionCommand": "npx nx run-many -t build",
+      "manifestRootsToUpdate": ["{projectRoot}", "dist/{projectRoot}"]
     },
     "releaseTag": {
       "pattern": "release/v{version}"
@@ -86,5 +86,12 @@
       }
     }
   },
-  "analytics": true
+  "analytics": true,
+  "generators": {
+    "@nx/react": {
+      "library": {
+        "unitTestRunner": "jest"
+      }
+    }
+  }
 }

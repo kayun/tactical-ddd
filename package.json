@@ -24,12 +24,15 @@
     ]
   },
   "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-react": "7.29.7",
     "@eslint/js": "9.39.4",
     "@nx/eslint": "23.0.0",
     "@nx/eslint-plugin": "23.0.0",
     "@nx/jest": "23.0.0",
     "@nx/js": "23.0.0",
     "@nx/plugin": "^23.0.0",
+    "@nx/react": "23.0.0",
     "@nx/vite": "23.0.0",
     "@nx/web": "23.0.0",
     "@swc-node/register": "1.11.1",
@@ -37,9 +40,20 @@
     "@swc/core": "1.15.8",
     "@swc/helpers": "0.5.18",
     "@swc/jest": "0.2.39",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.3.0",
     "@types/jest": "30.0.0",
     "@types/node": "20.19.9",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.0.3",
+    "ajv": "8.20.0",
+    "babel-jest": "30.3.0",
     "eslint": "8.57.1",
+    "eslint-plugin-import": "2.31.0",
+    "eslint-plugin-jsx-a11y": "6.10.1",
+    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react-hooks": "5.0.0",
     "husky": "9.1.7",
     "jest": "30.3.0",
     "jest-environment-jsdom": "30.3.0",
@@ -56,10 +70,13 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.61.1",
     "verdaccio": "6.7.2",
-    "vite": "8.0.16"
+    "vite": "8.0.16",
+    "vite-plugin-dts": "4.5.4"
   },
   "dependencies": {
-    "@nx/devkit": "23.0.0"
+    "@nx/devkit": "^22.0.0 || ^23.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "workspaces": [
     "packages/*"

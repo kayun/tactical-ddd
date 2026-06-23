@@ -8,6 +8,9 @@
     },
     {
       "path": "./packages/nx-e2e"
+    },
+    {
+      "path": "./packages/react"
     }
   ]
 }
