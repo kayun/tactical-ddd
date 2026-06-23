@@ -249,6 +249,80 @@ describe('shared-kernel generator', () => {
     });
   });
 
+  describe('contracts source scaffolding', () => {
+    beforeEach(async () => {
+      await sharedKernelGenerator(tree, baseOptions);
+    });
+
+    it('removes the default placeholder lib file', () => {
+      expect(
+        tree.exists('libs/shared/contracts/src/lib/shared-contracts.ts'),
+      ).toBe(false);
+    });
+
+    it('scaffolds the interface source files', () => {
+      expect(
+        tree.exists(
+          'libs/shared/contracts/src/lib/interfaces/http-client.interface.ts',
+        ),
+      ).toBe(true);
+      expect(
+        tree.exists(
+          'libs/shared/contracts/src/lib/interfaces/store.interface.ts',
+        ),
+      ).toBe(true);
+    });
+
+    it('barrel-exports both interfaces from index.ts', () => {
+      const index = tree.read('libs/shared/contracts/src/index.ts', 'utf-8');
+
+      expect(index).toContain('http-client.interface');
+      expect(index).toContain('store.interface');
+    });
+  });
+
+  describe('contracts barrel honors the resolved module format', () => {
+    it('omits .js extensions for a CommonJS library (tsc bundler)', async () => {
+      await sharedKernelGenerator(tree, { ...baseOptions, bundler: 'tsc' });
+
+      const index = tree.read('libs/shared/contracts/src/index.ts', 'utf-8');
+
+      expect(index).toContain("'./lib/interfaces/http-client.interface'");
+      expect(index).not.toContain('.interface.js');
+    });
+
+    it('appends .js extensions for an ESM library (vite bundler)', async () => {
+      await sharedKernelGenerator(tree, { ...baseOptions, bundler: 'vite' });
+
+      const index = tree.read('libs/shared/contracts/src/index.ts', 'utf-8');
+
+      expect(index).toContain("'./lib/interfaces/http-client.interface.js'");
+      expect(index).toContain("'./lib/interfaces/store.interface.js'");
+    });
+  });
+
+  describe.each([
+    { layer: 'utils', root: 'libs/shared/utils', placeholder: 'shared-utils' },
+    {
+      layer: 'infrastructure',
+      root: 'libs/shared/infrastructure',
+      placeholder: 'shared-infrastructure',
+    },
+  ])('$layer source scaffolding', ({ root, placeholder }) => {
+    beforeEach(async () => {
+      await sharedKernelGenerator(tree, baseOptions);
+    });
+
+    it('removes the default placeholder lib and spec files', () => {
+      expect(tree.exists(`${root}/src/lib/${placeholder}.ts`)).toBe(false);
+      expect(tree.exists(`${root}/src/lib/${placeholder}.spec.ts`)).toBe(false);
+    });
+
+    it('leaves an empty barrel index.ts', () => {
+      expect(tree.read(`${root}/src/index.ts`, 'utf-8')?.trim()).toBe('');
+    });
+  });
+
   describe('idempotency', () => {
     it('is safe to run multiple times without throwing', async () => {
       await sharedKernelGenerator(tree, baseOptions);
