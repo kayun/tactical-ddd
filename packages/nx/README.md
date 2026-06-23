@@ -63,6 +63,9 @@ libs/shared/
 This is the lowest and most abstract layer of the application. It establishes the "social contracts" between different parts of the system and the backend.
 
 - **What's inside:** Global TypeScript interfaces, data types, validation schemas (Zod/Yup), API response shapes (DTOs), and global domain event structures.
+- **Default Interfaces:**
+  - `HttpClient` — a generic interface for HTTP clients (GET, POST, PUT, PATCH, DELETE).
+  - `Store` — a simple key-value storage interface (GET, SET, DELETE).
 - **Features:** This library is generated without a unit test runner (`unitTestRunner: 'none'`) because it contains strictly compile-time types and interfaces that carry no executable logic.
 - **Import Rule:** It is strictly forbidden to import anything into this library from any other modules in the workspace.
 
