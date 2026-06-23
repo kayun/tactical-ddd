@@ -63,11 +63,74 @@ libs/shared/
 This is the lowest and most abstract layer of the application. It establishes the "social contracts" between different parts of the system and the backend.
 
 - **What's inside:** Global TypeScript interfaces, data types, validation schemas (Zod/Yup), API response shapes (DTOs), and global domain event structures.
-- **Default Interfaces:**
-  - `HttpClient` — a generic interface for HTTP clients (GET, POST, PUT, PATCH, DELETE).
-  - `Store` — a simple key-value storage interface (GET, SET, DELETE).
+- **Default Interfaces:** Ships with two foundational infrastructure contracts — `HttpClient` and `Store` (see [Default Contracts](#default-contracts) below).
 - **Features:** This library is generated without a unit test runner (`unitTestRunner: 'none'`) because it contains strictly compile-time types and interfaces that carry no executable logic.
 - **Import Rule:** It is strictly forbidden to import anything into this library from any other modules in the workspace.
+
+#### Default Contracts
+
+The `contracts` library is not generated empty — it is seeded with two foundational infrastructure contracts that the rest of the architecture (notably `libs/shared/infrastructure`) is expected to implement. Each interface is paired with a DI token (`Symbol.for(...)`), so it can be bound and resolved through a dependency-injection container (e.g. Inversify) without leaking the concrete implementation. Both are re-exported from the library barrel (`index.ts`):
+
+```ts
+import { HttpClient, HttpClientOptions, Store } from '@my-org/shared-contracts';
+```
+
+| Interface    | DI Token       | Purpose                                                                         |
+| ------------ | -------------- | ------------------------------------------------------------------------------- |
+| `HttpClient` | `HttpClient.$` | Transport-agnostic HTTP contract (`get` / `post` / `put` / `patch` / `delete`). |
+| `Store`      | `Store.$`      | Async key/value persistence contract (`set` / `get` / `delete`).                |
+
+##### `HttpClient`
+
+A framework- and library-agnostic HTTP boundary. Concrete implementations (Axios, Fetch, etc.) live in `libs/shared/infrastructure`; consumers depend only on this interface. The companion `HttpClientOptions` type carries per-request settings (e.g. `timeout`).
+
+```ts
+export type HttpClientOptions = {
+  timeout: number;
+};
+
+export interface HttpClient {
+  get<T>(url: string, options?: HttpClientOptions): Promise<T>;
+  post<T, K = unknown>(
+    url: string,
+    data?: K,
+    options?: HttpClientOptions,
+  ): Promise<T>;
+  put<T, K = unknown>(
+    url: string,
+    data?: K,
+    options?: HttpClientOptions,
+  ): Promise<T>;
+  patch<T, K = unknown>(
+    url: string,
+    data?: K,
+    options?: HttpClientOptions,
+  ): Promise<T>;
+  delete<T>(url: string, options?: HttpClientOptions): Promise<T>;
+}
+
+// DI token — bind your concrete client to this symbol.
+export const HttpClient = {
+  $: Symbol.for('HttpClient'),
+};
+```
+
+##### `Store`
+
+A generic, async key/value persistence boundary. Back it with `localStorage`, `IndexedDB`, an in-memory map, or any remote store — the contract stays the same.
+
+```ts
+export interface Store {
+  set<T>(key: string, value: T): Promise<boolean>;
+  get<T>(key: string): Promise<T | null>;
+  delete(service: string): Promise<boolean>;
+}
+
+// DI token — bind your concrete store to this symbol.
+export const Store = {
+  $: Symbol.for('Store'),
+};
+```
 
 ### 2. 🛠 utils
 
