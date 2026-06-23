@@ -58,6 +58,11 @@
             },
             {
               "input": "./packages/nx/src",
+              "glob": "**/files/**/*.ts",
+              "output": "."
+            },
+            {
+              "input": "./packages/nx/src",
               "glob": "**/*.d.ts",
               "output": "."
             },

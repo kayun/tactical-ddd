@@ -12,6 +12,7 @@
     "jest.config.js",
     "jest.config.cjs",
     "src/**/*.spec.ts",
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/**/files/**"
   ]
 }

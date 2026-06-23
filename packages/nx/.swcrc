@@ -24,6 +24,7 @@
     ".*\\.test.tsx?$",
     "./src/jest-setup.ts$",
     "./**/jest-setup.ts$",
-    ".*.js$"
+    ".*.js$",
+    ".*/files/.*"
   ]
 }
