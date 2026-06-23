@@ -1,3 +1,14 @@
+## 0.0.1-alpha.3 (2026-06-23)
+
+### 🚀 Features
+
+- **nx:** add resolveLibraryModuleFormat utility with unit tests detailing module format resolution logic ([11420a1](https://github.com/kayun/tactical-ddd/commit/11420a1))
+- **nx:** extend shared-kernel generator with module format support and file generation updates ([dbeab2a](https://github.com/kayun/tactical-ddd/commit/dbeab2a))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.0.1-alpha.2 (2026-06-22)
 
 ### 🚀 Features
