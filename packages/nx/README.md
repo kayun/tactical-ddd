@@ -4,9 +4,59 @@
 
 The suite is being built out incrementally. Generators currently available:
 
+- [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, and the Shared Kernel) in one step.
 - [`shared-kernel`](#shared-kernel-generator) — scaffolds the Shared Kernel, the agnostic foundation reused by every other module.
 
 > More generators (e.g. `domain`) are planned. This document covers the generators shipped today.
+
+## Init Generator
+
+The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace. Run it once, right after creating your Nx workspace, and it wires up everything the rest of the ecosystem relies on. It is a composing generator — it does not duplicate logic, but orchestrates the lower-level pieces:
+
+1. **Workspace generator defaults** — persists shared options (notably the organization `prefix`, plus `linter` and `unitTestRunner`) into `nx.json` under the `@tactical-ddd/nx` collection. You configure `prefix` **once** here, and Nx then injects it automatically into every later generator invocation (e.g. `shared-kernel`), so you never have to retype it:
+
+   ```jsonc
+   // nx.json
+   {
+     "generators": {
+       "@tactical-ddd/nx": {
+         "shared-kernel": {
+           "prefix": "@my-org",
+           "linter": "eslint",
+           "unitTestRunner": "jest",
+         },
+       },
+     },
+   }
+   ```
+
+2. **Module-boundary lint rules** — populates `@nx/enforce-module-boundaries` in the root ESLint config with the full Tactical DDD dependency graph (`depConstraints`). This enforces the allowed dependency directions between scopes/layers _and_ the absence of circular dependencies. Both flat config (`eslint.config.*`) and legacy `.eslintrc.*` are detected and updated via AST manipulation. See [Module Boundaries & Isolation Rules](#module-boundaries--isolation-rules).
+
+3. **Shared Kernel** — invokes the [`shared-kernel`](#shared-kernel-generator) generator to scaffold `libs/shared/{contracts,utils,infrastructure}`.
+
+> Order matters and is handled for you: the Shared Kernel is generated first (in a fresh workspace the root ESLint config only exists after the first library is created), then the module-boundary rules are applied to it.
+
+### Usage
+
+```bash
+nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=jest
+```
+
+When run interactively (or via Nx Console), the generator prompts for any required option that is not passed on the command line.
+
+### Options
+
+| Option            | Type     | Default       | Required | Description                                                                                                   |
+| ----------------- | -------- | ------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `prefix`          | `string` | —             | Yes      | Organization prefix used for the generated library names, e.g. `@my-org`. Set once, reused by all generators. |
+| `sharedDirectory` | `string` | `libs/shared` | No       | Root folder the Shared Kernel libraries are generated into.                                                   |
+| `linter`          | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                     |
+| `unitTestRunner`  | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                                  |
+| `bundler`         | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                |
+
+> The generator is idempotent: re-running it refreshes the `nx.json` defaults and module-boundary rules and safely skips Shared Kernel libraries that already exist.
+>
+> If the linter is set to `none` (no ESLint config in the workspace), the module-boundary step is skipped with a warning — there is no linter to enforce the graph.
 
 ## Shared Kernel Generator
 
