@@ -4,6 +4,11 @@
       "factory": "./src/generators/shared-kernel/shared-kernel",
       "schema": "./src/generators/shared-kernel/schema.json",
       "description": "Shared kernel domain"
+    },
+    "init": {
+      "factory": "./dist/generators/init/init",
+      "schema": "./dist/generators/init/schema.json",
+      "description": "Initial setup for a new Nx workspace"
     }
   }
 }
