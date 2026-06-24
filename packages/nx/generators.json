@@ -6,8 +6,8 @@
       "description": "Shared kernel domain"
     },
     "init": {
-      "factory": "./dist/generators/init/init",
-      "schema": "./dist/generators/init/schema.json",
+      "factory": "./src/generators/init/init",
+      "schema": "./src/generators/init/schema.json",
       "description": "Initial setup for a new Nx workspace"
     }
   }

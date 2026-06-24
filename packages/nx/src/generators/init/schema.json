@@ -1,18 +1,14 @@
 {
   "$schema": "https://json-schema.org/schema",
   "$id": "Init",
-  "title": "",
+  "title": "Tactical DDD: Init Generator",
   "type": "object",
   "properties": {
-    "name": {
+    "prefix": {
       "type": "string",
-      "description": "",
-      "$default": {
-        "$source": "argv",
-        "index": 0
-      },
-      "x-prompt": "What name would you like to use?"
+      "description": "Organization prefix for the generated libraries, e.g. '@my-org'",
+      "x-prompt": "Which organization prefix should be used (e.g. @my-org)?"
     }
   },
-  "required": ["name"]
+  "required": ["prefix"]
 }
