@@ -5,7 +5,20 @@ import {
   type NxJsonConfiguration,
   type Tree,
 } from '@nx/devkit';
+import {
+  addOverrideToLintConfig,
+  isEslintConfigSupported,
+  lintConfigHasOverride,
+  updateOverrideInLintConfig,
+} from '@nx/eslint/internal';
+
+import type { Linter } from 'eslint';
+
 import type { InitGeneratorSchema } from './schema';
+import { DEP_CONSTRAINTS } from './module-boundaries';
+
+/** The module-boundaries rule whose `depConstraints` encode the dependency graph. */
+const MODULE_BOUNDARIES_RULE = '@nx/enforce-module-boundaries';
 
 /**
  * Collection name this plugin publishes its generators under. Used as the key
@@ -22,6 +35,7 @@ const PREFIXED_GENERATORS = ['shared-kernel'] as const;
 
 export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
   setGeneratorDefaults(tree, options);
+  setModuleBoundaries(tree);
 
   await formatFiles(tree);
 }
@@ -57,6 +71,71 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
   }
 
   updateNxJson(tree, nxJson);
+}
+
+/**
+ * Configures `@nx/enforce-module-boundaries` in the root ESLint flat config with
+ * the Tactical DDD `depConstraints`, so the architecture's dependency graph (and
+ * the absence of circular dependencies) is enforced at lint time.
+ *
+ * The existing rule block — created by Nx with an empty `depConstraints: []` —
+ * is updated in place via AST manipulation. If no such block exists yet, a new
+ * override carrying the full rule is appended.
+ */
+function setModuleBoundaries(tree: Tree) {
+  if (!isEslintConfigSupported(tree)) {
+    console.warn(
+      'No supported ESLint flat config found at the workspace root — skipping module boundary rules.',
+    );
+    return;
+  }
+
+  const hasRule = lintConfigHasOverride(tree, '', (override) =>
+    Boolean(override.rules?.[MODULE_BOUNDARIES_RULE]),
+  );
+
+  if (hasRule) {
+    updateOverrideInLintConfig(
+      tree,
+      '',
+      (override) => Boolean(override.rules?.[MODULE_BOUNDARIES_RULE]),
+      (override) => {
+        const rules = override.rules ?? {};
+        const rule = rules[MODULE_BOUNDARIES_RULE];
+        const [severity = 'error', ruleOptions = {}] = Array.isArray(rule)
+          ? rule
+          : [];
+
+        const updatedRule: Linter.RuleEntry = [
+          severity as Linter.RuleSeverity,
+          {
+            ...(ruleOptions as Record<string, unknown>),
+            depConstraints: DEP_CONSTRAINTS,
+          },
+        ];
+
+        return {
+          ...override,
+          rules: { ...rules, [MODULE_BOUNDARIES_RULE]: updatedRule },
+        };
+      },
+    );
+    return;
+  }
+
+  addOverrideToLintConfig(tree, '', {
+    files: ['**/*.ts', '**/*.js'],
+    rules: {
+      [MODULE_BOUNDARIES_RULE]: [
+        'error',
+        {
+          enforceBuildableLibDependency: true,
+          allow: ['^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$'],
+          depConstraints: DEP_CONSTRAINTS,
+        },
+      ],
+    },
+  });
 }
 
 export default initGenerator;

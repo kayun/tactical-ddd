@@ -1,12 +1,14 @@
 export enum LibraryScope {
   Shared = 'scope:shared',
   Domain = 'scope:domain',
+  CrossDomain = 'domain:*',
 }
 
 export enum LibraryType {
   Contracts = 'type:contracts',
   Core = 'type:core',
   Features = 'type:features',
+  Ui = 'type:ui',
   Utils = 'type:utils',
   Testing = 'type:testing',
   Infrastructure = 'type:infrastructure',

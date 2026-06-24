@@ -3,6 +3,29 @@ import { Tree, readNxJson, updateNxJson } from '@nx/devkit';
 
 import { initGenerator } from './init';
 import { InitGeneratorSchema } from './schema';
+import { DEP_CONSTRAINTS } from './module-boundaries';
+import { LibraryScope } from '../../types';
+
+const ESLINT_CONFIG = 'eslint.config.mjs';
+
+const ROOT_ESLINT_WITH_RULE = `import nx from '@nx/eslint-plugin';
+
+export default [
+  {
+    files: ['**/*.ts', '**/*.js'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          enforceBuildableLibDependency: true,
+          allow: ['^.*/eslint(\\\\.base)?\\\\.config\\\\.[cm]?[jt]s$'],
+          depConstraints: [],
+        },
+      ],
+    },
+  },
+];
+`;
 
 describe('init generator', () => {
   let tree: Tree;
@@ -10,6 +33,7 @@ describe('init generator', () => {
 
   beforeEach(() => {
     tree = createTreeWithEmptyWorkspace();
+    tree.write(ESLINT_CONFIG, ROOT_ESLINT_WITH_RULE);
   });
 
   it('should run successfully', async () => {
@@ -52,5 +76,48 @@ describe('init generator', () => {
     ] as Record<string, { prefix: string }>;
 
     expect(collection['shared-kernel'].prefix).toBe('@new-org');
+  });
+
+  describe('module boundaries', () => {
+    it('populates depConstraints in the existing enforce-module-boundaries rule', async () => {
+      await initGenerator(tree, options);
+
+      const config = tree.read(ESLINT_CONFIG, 'utf-8') ?? '';
+
+      // Every source tag from the constraint set is now wired into the config.
+      for (const { sourceTag } of DEP_CONSTRAINTS) {
+        expect(config).toContain(sourceTag);
+      }
+      expect(config).toContain('onlyDependOnLibsWithTags');
+      // The empty default is gone — depConstraints is now populated.
+      expect(config).not.toMatch(/depConstraints:\s*\[\s*\]/);
+    });
+
+    it('protects against cross-domain imports via the dynamic domain:* tag', async () => {
+      await initGenerator(tree, options);
+
+      const config = tree.read(ESLINT_CONFIG, 'utf-8') ?? '';
+
+      expect(config).toContain(LibraryScope.CrossDomain);
+    });
+
+    it('adds an enforce-module-boundaries override when none exists yet', async () => {
+      tree.write(ESLINT_CONFIG, `export default [];\n`);
+
+      await initGenerator(tree, options);
+
+      const config = tree.read(ESLINT_CONFIG, 'utf-8') ?? '';
+
+      expect(config).toContain('@nx/enforce-module-boundaries');
+      expect(config).toContain('onlyDependOnLibsWithTags');
+      expect(config).toContain(LibraryScope.Shared);
+    });
+
+    it('does not throw when no ESLint config is present', async () => {
+      tree.delete(ESLINT_CONFIG);
+      expect(tree.exists(ESLINT_CONFIG)).toBe(false);
+
+      await expect(initGenerator(tree, options)).resolves.not.toThrow();
+    });
   });
 });
