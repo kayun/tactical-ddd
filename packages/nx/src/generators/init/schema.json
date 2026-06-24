@@ -4,11 +4,35 @@
   "title": "Tactical DDD: Init Generator",
   "type": "object",
   "properties": {
+    "sharedDirectory": {
+      "type": "string",
+      "description": "Root folder for the shared kernel (it is recommended to keep libs/shared)",
+      "default": "libs/shared",
+      "x-prompt": "Which directory should the Shared Kernel be generated into?"
+    },
     "prefix": {
       "type": "string",
       "description": "Organization prefix for the generated libraries, e.g. '@my-org'",
       "x-prompt": "Which organization prefix should be used (e.g. @my-org)?"
+    },
+    "linter": {
+      "type": "string",
+      "enum": ["eslint", "none"],
+      "description": "Which linter to use?",
+      "x-prompt": "Which linter should be configured?"
+    },
+    "unitTestRunner": {
+      "type": "string",
+      "enum": ["jest", "vitest", "none"],
+      "description": "Which test runner to use?",
+      "x-prompt": "Which unit test runner should be used?"
+    },
+    "bundler": {
+      "type": "string",
+      "enum": ["none", "swc", "tsc", "rollup", "vite", "esbuild"],
+      "default": "none",
+      "description": "Which bundler to use?"
     }
   },
-  "required": ["prefix"]
+  "required": ["prefix", "linter", "unitTestRunner"]
 }

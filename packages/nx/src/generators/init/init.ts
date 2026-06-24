@@ -16,6 +16,7 @@ import type { Linter } from 'eslint';
 
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
+import sharedKernelGenerator from '../shared-kernel/shared-kernel';
 
 /** The module-boundaries rule whose `depConstraints` encode the dependency graph. */
 const MODULE_BOUNDARIES_RULE = '@nx/enforce-module-boundaries';
@@ -36,6 +37,14 @@ const PREFIXED_GENERATORS = ['shared-kernel'] as const;
 export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
   setGeneratorDefaults(tree, options);
   setModuleBoundaries(tree);
+
+  await sharedKernelGenerator(tree, {
+    directory: options.sharedDirectory,
+    prefix: options.prefix,
+    linter: options.linter,
+    unitTestRunner: options.unitTestRunner,
+    bundler: options.bundler,
+  });
 
   await formatFiles(tree);
 }
@@ -67,6 +76,8 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
     collectionDefaults[generator] = {
       ...collectionDefaults[generator],
       prefix: options.prefix,
+      linter: options.linter,
+      unitTestRunner: options.unitTestRunner,
     };
   }
 
