@@ -9,9 +9,9 @@
   },
   "scripts": {
     "nx": "nx",
-    "test": "nx run-many -t test --max-parallel 3 --passWithNoTests --exclude=@tactical-ddd/nx-e2e",
+    "test": "nx affected -t test --max-parallel 3 --passWithNoTests --exclude=@tactical-ddd/nx-e2e",
     "generators:e2e": "nx run @tactical-ddd/nx-e2e:e2e",
-    "lint:fix": "nx run-many -t lint --max-parallel 3 --fix",
+    "lint:fix": "nx affected  -t lint --max-parallel 3 --fix",
     "format:fix": "nx format:write",
     "prepare": "husky"
   },
