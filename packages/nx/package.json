@@ -2,6 +2,23 @@
   "name": "@tactical-ddd/nx",
   "version": "0.0.2-alpha.0",
   "license": "MIT",
+  "keywords": [
+    "nx",
+    "nx-plugin",
+    "nx-generator",
+    "generator",
+    "schematics",
+    "scaffolding",
+    "ddd",
+    "domain-driven-design",
+    "clean-architecture",
+    "tactical-ddd",
+    "monorepo",
+    "shared-kernel",
+    "module-boundaries",
+    "architecture",
+    "typescript"
+  ],
   "author": {
     "name": "Artyom Kayun",
     "email": "kayun.artem@gmail.com",

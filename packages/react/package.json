@@ -2,6 +2,22 @@
   "name": "@tactical-ddd/react",
   "version": "0.0.2-alpha.0",
   "license": "MIT",
+  "keywords": [
+    "react",
+    "react-native",
+    "ddd",
+    "domain-driven-design",
+    "clean-architecture",
+    "tactical-ddd",
+    "providers",
+    "compose-providers",
+    "context",
+    "dependency-injection",
+    "hooks",
+    "shared-kernel",
+    "architecture",
+    "typescript"
+  ],
   "author": {
     "name": "Artyom Kayun",
     "email": "kayun.artem@gmail.com",
