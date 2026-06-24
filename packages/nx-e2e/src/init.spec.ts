@@ -99,6 +99,24 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
     });
   });
 
+  describe('dependency installation', () => {
+    it('adds the generator plugin packages to the workspace package.json', () => {
+      const devDependencies = readJson('package.json').devDependencies ?? {};
+
+      // Plugins the configured/invoked generators rely on; jest because the
+      // workspace was bootstrapped with --unitTestRunner=jest.
+      for (const pkg of [
+        '@nx/js',
+        '@nx/react',
+        '@nx/eslint',
+        '@nx/eslint-plugin',
+        '@nx/jest',
+      ]) {
+        expect(devDependencies).toHaveProperty(pkg);
+      }
+    });
+  });
+
   describe('module boundaries', () => {
     it('wires the architecture dep-constraints into the root ESLint config', () => {
       const config = readEslintConfig();

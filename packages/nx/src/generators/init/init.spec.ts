@@ -2,8 +2,10 @@ import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import {
   Tree,
   getProjects,
+  readJson,
   readNxJson,
   readProjectConfiguration,
+  updateJson,
   updateNxJson,
 } from '@nx/devkit';
 
@@ -63,7 +65,11 @@ describe('init generator', () => {
   });
 
   it('should run successfully', async () => {
-    await expect(initGenerator(tree, baseOptions)).resolves.not.toThrow();
+    // Resolves to the install task; assert on the value rather than `.toThrow()`
+    // so the returned callback is not invoked (which would spawn a real install).
+    await expect(initGenerator(tree, baseOptions)).resolves.toEqual(
+      expect.any(Function),
+    );
   });
 
   describe('generator defaults', () => {
@@ -210,11 +216,63 @@ describe('init generator', () => {
       expect(config).toContain(LibraryScope.Shared);
     });
 
+    it('stays idempotent on a legacy .eslintrc.json root even when detection reports flat config', async () => {
+      // Reproduces the e2e regression: a workspace scaffolded against ESLint 8
+      // keeps a legacy `.eslintrc.json`, but our plugin install bumps ESLint to
+      // >= 9, flipping `@nx/eslint`'s `useFlatConfig()` to flat. The flat AST
+      // utils then read a non-existent flat config and throw. We pin
+      // `ESLINT_USE_FLAT_CONFIG=true` to stand in for the post-bump detection.
+      tree.delete(ESLINT_CONFIG);
+      tree.write(
+        '.eslintrc.json',
+        JSON.stringify({
+          root: true,
+          overrides: [
+            {
+              files: ['*.ts', '*.tsx', '*.js', '*.jsx'],
+              rules: {
+                '@nx/enforce-module-boundaries': [
+                  'error',
+                  { enforceBuildableLibDependency: true, depConstraints: [] },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+
+      const previous = process.env.ESLINT_USE_FLAT_CONFIG;
+      process.env.ESLINT_USE_FLAT_CONFIG = 'true';
+
+      try {
+        await initGenerator(tree, baseOptions);
+
+        await expect(initGenerator(tree, baseOptions)).resolves.toEqual(
+          expect.any(Function),
+        );
+
+        // The legacy root config was updated in place, not abandoned.
+        expect(tree.read('.eslintrc.json', 'utf-8') ?? '').toContain(
+          'scope:shared',
+        );
+        // The caller's env value is left exactly as it was found.
+        expect(process.env.ESLINT_USE_FLAT_CONFIG).toBe('true');
+      } finally {
+        if (previous === undefined) {
+          delete process.env.ESLINT_USE_FLAT_CONFIG;
+        } else {
+          process.env.ESLINT_USE_FLAT_CONFIG = previous;
+        }
+      }
+    });
+
     it('does not throw when no ESLint config is present', async () => {
       tree.delete(ESLINT_CONFIG);
       expect(tree.exists(ESLINT_CONFIG)).toBe(false);
 
-      await expect(initGenerator(tree, baseOptions)).resolves.not.toThrow();
+      await expect(initGenerator(tree, baseOptions)).resolves.toEqual(
+        expect.any(Function),
+      );
     });
   });
 
@@ -282,6 +340,71 @@ describe('init generator', () => {
           'test'
         ],
       ).toBeDefined();
+    });
+  });
+
+  describe('dependency installation', () => {
+    const devDeps = (): Record<string, string> =>
+      readJson(tree, 'package.json').devDependencies ?? {};
+
+    it('returns an install task', async () => {
+      const task = await initGenerator(tree, baseOptions);
+
+      expect(typeof task).toBe('function');
+    });
+
+    it('adds the core generator plugins as devDependencies', async () => {
+      await initGenerator(tree, baseOptions);
+
+      expect(devDeps()).toEqual(
+        expect.objectContaining({
+          '@nx/js': expect.any(String),
+          '@nx/react': expect.any(String),
+        }),
+      );
+    });
+
+    it('adds the ESLint plugins when the linter is eslint', async () => {
+      await initGenerator(tree, { ...baseOptions, linter: 'eslint' });
+
+      expect(devDeps()).toEqual(
+        expect.objectContaining({
+          '@nx/eslint': expect.any(String),
+          '@nx/eslint-plugin': expect.any(String),
+        }),
+      );
+    });
+
+    it('omits the ESLint plugins when the linter is none', async () => {
+      // Use a pre-existing flat config so module boundaries are not the reason
+      // ESLint is pulled in; with linter:none init must not add the plugins.
+      await initGenerator(tree, { ...baseOptions, linter: 'none' });
+
+      expect(devDeps()).not.toHaveProperty('@nx/eslint-plugin');
+    });
+
+    it('adds @nx/jest for the jest runner and @nx/vite for vitest', async () => {
+      await initGenerator(tree, { ...baseOptions, unitTestRunner: 'jest' });
+      expect(devDeps()).toHaveProperty('@nx/jest');
+
+      tree = createTreeWithEmptyWorkspace();
+      tree.write(ESLINT_CONFIG, ROOT_ESLINT_WITH_RULE);
+      await initGenerator(tree, { ...baseOptions, unitTestRunner: 'vitest' });
+      expect(devDeps()).toHaveProperty('@nx/vite');
+    });
+
+    it('does not downgrade a dependency that is already present', async () => {
+      updateJson(tree, 'package.json', (json) => {
+        json.devDependencies = {
+          ...json.devDependencies,
+          '@nx/js': '999.0.0',
+        };
+        return json;
+      });
+
+      await initGenerator(tree, baseOptions);
+
+      expect(devDeps()['@nx/js']).toBe('999.0.0');
     });
   });
 });

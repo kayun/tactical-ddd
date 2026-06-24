@@ -44,6 +44,8 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
 
 3. **Shared Kernel** — invokes the [`shared-kernel`](#shared-kernel-generator) generator to scaffold `libs/shared/{contracts,utils,infrastructure}`.
 
+4. **Dependency check & install** — ensures the Nx plugin packages the configured and invoked generators rely on are present in the workspace `package.json`, installing any that are missing (via `addDependenciesToPackageJson`). Versions are pinned to the workspace's Nx version. The set is scoped to your choices: `@nx/js` and `@nx/react` always; `@nx/eslint` + `@nx/eslint-plugin` when `linter: eslint`; and `@nx/jest` or `@nx/vite` to match `unitTestRunner`. Already-installed packages are left untouched (never downgraded).
+
 > Order matters and is handled for you: the Shared Kernel is generated first (in a fresh workspace the root ESLint config only exists after the first library is created), then the module-boundary rules are applied to it.
 
 ### Usage
