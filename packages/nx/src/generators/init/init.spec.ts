@@ -149,6 +149,7 @@ describe('init generator', () => {
         ...baseOptions,
         linter: 'none',
         unitTestRunner: 'vitest',
+        preset: 'react',
       });
 
       const generators = readNxJson(tree)?.generators as Record<
@@ -169,7 +170,7 @@ describe('init generator', () => {
     it('defaults the library bundler to none when none is provided', async () => {
       const { bundler: _omit, ...withoutBundler } = baseOptions;
 
-      await initGenerator(tree, withoutBundler);
+      await initGenerator(tree, { ...withoutBundler, preset: 'react' });
 
       const generators = readNxJson(tree)?.generators as Record<
         string,
@@ -178,6 +179,30 @@ describe('init generator', () => {
 
       expect(generators['@nx/js:library'].bundler).toBe('none');
       expect(generators['@nx/react:library'].bundler).toBe('none');
+    });
+
+    it('omits the @nx/react:library defaults when no preset is selected', async () => {
+      await initGenerator(tree, baseOptions);
+
+      const generators = readNxJson(tree)?.generators as Record<
+        string,
+        Record<string, unknown>
+      >;
+
+      expect(generators['@nx/js:library']).toBeDefined();
+      expect(generators['@nx/react:library']).toBeUndefined();
+    });
+
+    it('registers the @nx/react:library defaults under the react preset', async () => {
+      await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+      expect(readNxJson(tree)?.generators).toMatchObject({
+        '@nx/react:library': {
+          bundler: 'none',
+          linter: 'eslint',
+          unitTestRunner: 'jest',
+        },
+      });
     });
   });
 
@@ -346,6 +371,8 @@ describe('init generator', () => {
   describe('dependency installation', () => {
     const devDeps = (): Record<string, string> =>
       readJson(tree, 'package.json').devDependencies ?? {};
+    const deps = (): Record<string, string> =>
+      readJson(tree, 'package.json').dependencies ?? {};
 
     it('returns an install task', async () => {
       const task = await initGenerator(tree, baseOptions);
@@ -353,14 +380,11 @@ describe('init generator', () => {
       expect(typeof task).toBe('function');
     });
 
-    it('adds the core generator plugins as devDependencies', async () => {
+    it('adds the core generator plugin as a devDependency', async () => {
       await initGenerator(tree, baseOptions);
 
       expect(devDeps()).toEqual(
-        expect.objectContaining({
-          '@nx/js': expect.any(String),
-          '@nx/react': expect.any(String),
-        }),
+        expect.objectContaining({ '@nx/js': expect.any(String) }),
       );
     });
 
@@ -405,6 +429,34 @@ describe('init generator', () => {
       await initGenerator(tree, baseOptions);
 
       expect(devDeps()['@nx/js']).toBe('999.0.0');
+    });
+
+    describe('react preset', () => {
+      it('adds @nx/react as a devDependency', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        expect(devDeps()).toHaveProperty('@nx/react');
+      });
+
+      it('adds the React runtime and bindings as production dependencies', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        expect(deps()).toEqual(
+          expect.objectContaining({
+            react: expect.any(String),
+            'react-dom': expect.any(String),
+            '@tactical-ddd/react': expect.any(String),
+          }),
+        );
+      });
+
+      it('does not pull in React tooling without the react preset', async () => {
+        await initGenerator(tree, baseOptions);
+
+        expect(devDeps()).not.toHaveProperty('@nx/react');
+        expect(deps()).not.toHaveProperty('react');
+        expect(deps()).not.toHaveProperty('@tactical-ddd/react');
+      });
     });
   });
 });

@@ -31,7 +31,7 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
 
   const runGenerator = () =>
     execSync(
-      `npx nx g @tactical-ddd/nx:init --prefix=${PREFIX} --sharedDirectory=${SHARED_DIR} --linter=eslint --unitTestRunner=jest --no-interactive`,
+      `npx nx g @tactical-ddd/nx:init --prefix=${PREFIX} --sharedDirectory=${SHARED_DIR} --linter=eslint --unitTestRunner=jest --preset=react --no-interactive`,
       { cwd: projectDirectory, stdio: 'inherit', env: process.env },
     );
 
@@ -113,6 +113,14 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
         '@nx/jest',
       ]) {
         expect(devDependencies).toHaveProperty(pkg);
+      }
+    });
+
+    it('installs the React runtime and bindings as production dependencies under the react preset', () => {
+      const dependencies = readJson('package.json').dependencies ?? {};
+
+      for (const pkg of ['react', 'react-dom', '@tactical-ddd/react']) {
+        expect(dependencies).toHaveProperty(pkg);
       }
     });
   });

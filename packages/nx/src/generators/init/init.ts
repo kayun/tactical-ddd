@@ -64,8 +64,39 @@ const PREFIXED_GENERATORS = ['shared-kernel', 'domain'] as const;
 /**
  * Built-in Nx library generators that should inherit the workspace-wide
  * build/lint/test defaults so hand-rolled libraries match the conventions.
+ * `@nx/js:library` always applies; `@nx/react:library` is layered on only for
+ * the `react` preset (see {@link setGeneratorDefaults}).
  */
-const LIBRARY_GENERATORS = ['@nx/js:library', '@nx/react:library'] as const;
+const BASE_LIBRARY_GENERATORS = ['@nx/js:library'] as const;
+const REACT_LIBRARY_GENERATORS = ['@nx/react:library'] as const;
+
+/** The Tactical DDD React runtime bindings package. */
+const TACTICAL_DDD_REACT = '@tactical-ddd/react';
+
+/**
+ * React runtime versions added to the *user's* workspace under the `react`
+ * preset. Kept in step with the React version `@nx/react`'s own generators
+ * install so the two never disagree.
+ */
+const REACT_VERSION = '^19.0.0';
+const REACT_DOM_VERSION = '^19.0.0';
+
+/**
+ * Version specifier to install `@tactical-ddd/react` at. The React bindings are
+ * released in lockstep with this plugin, so we mirror the running plugin's own
+ * version. This also makes the e2e suite resolve the locally-published build:
+ * both packages are published to the local registry under the same e2e version.
+ */
+function tacticalDddReactVersion(): string {
+  try {
+    // Resolves from the workspace the generator runs in, where the plugin is
+    // installed (real usage and e2e).
+    return require('@tactical-ddd/nx/package.json').version as string;
+  } catch {
+    // Source / unit-test fallback: this package's own manifest.
+    return require('../../../package.json').version as string;
+  }
+}
 
 export async function initGenerator(
   tree: Tree,
@@ -108,18 +139,19 @@ export async function initGenerator(
  *
  * Dependencies are scoped to the chosen options: the ESLint tooling is only
  * required when `linter: 'eslint'`, and the test-runner plugin follows
- * `unitTestRunner`.
+ * `unitTestRunner`. The `react` preset additionally pulls in the `@nx/react`
+ * generator plugin (dev-time) plus the React runtime — `react`, `react-dom`
+ * and the `@tactical-ddd/react` bindings — as production dependencies.
  */
 function ensureGeneratorDependencies(
   tree: Tree,
   options: InitGeneratorSchema,
 ): GeneratorCallback {
+  const dependencies: Record<string, string> = {};
   const devDependencies: Record<string, string> = {
     // Powers the shared-kernel generator (`@nx/js:library`) and the
     // `@nx/js:library` defaults written above.
     '@nx/js': NX_VERSION,
-    // Powers the `@nx/react:library` defaults written above.
-    '@nx/react': NX_VERSION,
   };
 
   if (options.linter === 'eslint') {
@@ -135,7 +167,16 @@ function ensureGeneratorDependencies(
     devDependencies['@nx/vite'] = NX_VERSION;
   }
 
-  return addDependenciesToPackageJson(tree, {}, devDependencies);
+  if (options.preset === 'react') {
+    // Dev-time: powers the `@nx/react:library` defaults and React generators.
+    devDependencies['@nx/react'] = NX_VERSION;
+    // Run-time: the React framework and our React bindings ship in the app.
+    dependencies['react'] = REACT_VERSION;
+    dependencies['react-dom'] = REACT_DOM_VERSION;
+    dependencies[TACTICAL_DDD_REACT] = tacticalDddReactVersion();
+  }
+
+  return addDependenciesToPackageJson(tree, dependencies, devDependencies);
 }
 
 /**
@@ -154,6 +195,7 @@ function ensureGeneratorDependencies(
  *     },
  *     // 2. The built-in library generators — so hand-rolled libs match conventions.
  *     "@nx/js:library":    { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" },
+ *     // `@nx/react:library` is added only under the `react` preset.
  *     "@nx/react:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" }
  *   }
  */
@@ -183,13 +225,20 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
   // 2. The built-in library generators get the same workspace-wide build/lint/
   // test defaults, so a plain `nx g @nx/js:library` (or `@nx/react:library`)
   // produces a library that already matches the Tactical DDD conventions.
+  // `@nx/react:library` defaults are written only under the `react` preset, so
+  // we don't advertise React tooling a non-React workspace never installed.
   const libraryDefaults: Record<string, unknown> = {
     bundler: options.bundler ?? 'none',
     linter: options.linter,
     unitTestRunner: options.unitTestRunner,
   };
 
-  for (const generator of LIBRARY_GENERATORS) {
+  const libraryGenerators =
+    options.preset === 'react'
+      ? [...BASE_LIBRARY_GENERATORS, ...REACT_LIBRARY_GENERATORS]
+      : BASE_LIBRARY_GENERATORS;
+
+  for (const generator of libraryGenerators) {
     generators[generator] = {
       ...generators[generator],
       ...libraryDefaults,

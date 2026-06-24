@@ -32,6 +32,23 @@
       "enum": ["none", "swc", "tsc", "rollup", "vite", "esbuild"],
       "default": "none",
       "description": "Which bundler to use?"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["none", "react"],
+      "default": "none",
+      "description": "Framework preset. 'react' also installs @tactical-ddd/react, the React runtime and React generator defaults.",
+      "x-prompt": {
+        "message": "Which framework preset should be configured?",
+        "type": "list",
+        "items": [
+          { "value": "none", "label": "None (framework-agnostic)" },
+          {
+            "value": "react",
+            "label": "React (@tactical-ddd/react + React tooling)"
+          }
+        ]
+      }
     }
   },
   "required": ["prefix", "linter", "unitTestRunner"]
