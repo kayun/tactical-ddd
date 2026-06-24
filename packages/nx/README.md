@@ -13,7 +13,7 @@ The suite is being built out incrementally. Generators currently available:
 
 The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace. Run it once, right after creating your Nx workspace, and it wires up everything the rest of the ecosystem relies on. It is a composing generator — it does not duplicate logic, but orchestrates the lower-level pieces:
 
-1. **Workspace generator defaults** — persists shared options (notably the organization `prefix`, plus `linter` and `unitTestRunner`) into `nx.json` under the `@tactical-ddd/nx` collection. You configure `prefix` **once** here, and Nx then injects it automatically into every later generator invocation (e.g. `shared-kernel`), so you never have to retype it:
+1. **Workspace generator defaults** — persists shared options into `nx.json` so they are configured **once** and Nx injects them automatically into later generator invocations, so you never have to retype them. Two groups are written: the organization `prefix` plus `linter`/`unitTestRunner` for our own `@tactical-ddd/nx` generators, and the same `bundler`/`linter`/`unitTestRunner` choices for the built-in `@nx/js:library` and `@nx/react:library` generators — so even a hand-rolled `nx g @nx/js:library` already matches the conventions:
 
    ```jsonc
    // nx.json
@@ -25,6 +25,16 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
            "linter": "eslint",
            "unitTestRunner": "jest",
          },
+       },
+       "@nx/js:library": {
+         "bundler": "none",
+         "linter": "eslint",
+         "unitTestRunner": "jest",
+       },
+       "@nx/react:library": {
+         "bundler": "none",
+         "linter": "eslint",
+         "unitTestRunner": "jest",
        },
      },
    }

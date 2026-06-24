@@ -32,7 +32,13 @@ const COLLECTION = '@tactical-ddd/nx';
  * Extend this list as new generators are added — for now only `shared-kernel`
  * consumes the prefix.
  */
-const PREFIXED_GENERATORS = ['shared-kernel'] as const;
+const PREFIXED_GENERATORS = ['shared-kernel', 'domain'] as const;
+
+/**
+ * Built-in Nx library generators that should inherit the workspace-wide
+ * build/lint/test defaults so hand-rolled libraries match the conventions.
+ */
+const LIBRARY_GENERATORS = ['@nx/js:library', '@nx/react:library'] as const;
 
 export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
   setGeneratorDefaults(tree, options);
@@ -54,27 +60,37 @@ export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
 }
 
 /**
- * Persists workspace-wide generator defaults into `nx.json` so a value like the
- * organization `prefix` is configured once during `init` and then transparently
- * injected by Nx into every subsequent generator invocation (e.g.
- * `nx g @tactical-ddd/nx:shared-kernel`) without the user re-typing it.
+ * Persists workspace-wide generator defaults into `nx.json` so choices like the
+ * organization `prefix`, linter and test runner are configured once during
+ * `init` and then transparently injected by Nx into every subsequent generator
+ * invocation (e.g. `nx g @tactical-ddd/nx:shared-kernel`, or even the built-in
+ * `nx g @nx/js:library`) without the user re-typing them.
  *
- * Defaults are written under the collection key using Nx's nested shape:
+ * Two groups of defaults are written:
  *
  *   "generators": {
+ *     // 1. Our own collection — inherit the prefix and linting/testing choices.
  *     "@tactical-ddd/nx": {
- *       "shared-kernel": { "prefix": "@my-org" }
- *     }
+ *       "shared-kernel": { "prefix": "@my-org", "linter": "eslint", "unitTestRunner": "jest" }
+ *     },
+ *     // 2. The built-in library generators — so hand-rolled libs match conventions.
+ *     "@nx/js:library":    { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" },
+ *     "@nx/react:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" }
  *   }
  */
 function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
   const nxJson = readNxJson(tree) ?? ({} as NxJsonConfiguration);
 
-  nxJson.generators ??= {};
+  const generators = (nxJson.generators ??= {}) as Record<
+    string,
+    Record<string, unknown>
+  >;
 
-  const collectionDefaults = ((nxJson.generators as Record<string, unknown>)[
-    COLLECTION
-  ] ??= {}) as Record<string, Record<string, unknown>>;
+  // 1. Our own collection's generators inherit the prefix + linting/testing.
+  const collectionDefaults = (generators[COLLECTION] ??= {}) as Record<
+    string,
+    Record<string, unknown>
+  >;
 
   for (const generator of PREFIXED_GENERATORS) {
     collectionDefaults[generator] = {
@@ -82,6 +98,22 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
       prefix: options.prefix,
       linter: options.linter,
       unitTestRunner: options.unitTestRunner,
+    };
+  }
+
+  // 2. The built-in library generators get the same workspace-wide build/lint/
+  // test defaults, so a plain `nx g @nx/js:library` (or `@nx/react:library`)
+  // produces a library that already matches the Tactical DDD conventions.
+  const libraryDefaults: Record<string, unknown> = {
+    bundler: options.bundler ?? 'none',
+    linter: options.linter,
+    unitTestRunner: options.unitTestRunner,
+  };
+
+  for (const generator of LIBRARY_GENERATORS) {
+    generators[generator] = {
+      ...generators[generator],
+      ...libraryDefaults,
     };
   }
 

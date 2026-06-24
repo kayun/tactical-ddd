@@ -120,6 +120,59 @@ describe('init generator', () => {
 
       expect(collection['shared-kernel'].prefix).toBe('@new-org');
     });
+
+    it('registers build/lint/test defaults for the @nx/js:library generator', async () => {
+      await initGenerator(tree, {
+        ...baseOptions,
+        linter: 'eslint',
+        unitTestRunner: 'jest',
+        bundler: 'none',
+      });
+
+      expect(readNxJson(tree)?.generators).toMatchObject({
+        '@nx/js:library': {
+          bundler: 'none',
+          linter: 'eslint',
+          unitTestRunner: 'jest',
+        },
+      });
+    });
+
+    it('forwards the chosen linter/test-runner to the library generator defaults', async () => {
+      await initGenerator(tree, {
+        ...baseOptions,
+        linter: 'none',
+        unitTestRunner: 'vitest',
+      });
+
+      const generators = readNxJson(tree)?.generators as Record<
+        string,
+        Record<string, unknown>
+      >;
+
+      expect(generators['@nx/js:library']).toMatchObject({
+        linter: 'none',
+        unitTestRunner: 'vitest',
+      });
+      expect(generators['@nx/react:library']).toMatchObject({
+        linter: 'none',
+        unitTestRunner: 'vitest',
+      });
+    });
+
+    it('defaults the library bundler to none when none is provided', async () => {
+      const { bundler: _omit, ...withoutBundler } = baseOptions;
+
+      await initGenerator(tree, withoutBundler);
+
+      const generators = readNxJson(tree)?.generators as Record<
+        string,
+        Record<string, unknown>
+      >;
+
+      expect(generators['@nx/js:library'].bundler).toBe('none');
+      expect(generators['@nx/react:library'].bundler).toBe('none');
+    });
   });
 
   describe('module boundaries', () => {

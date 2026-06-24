@@ -82,6 +82,21 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
         unitTestRunner: 'jest',
       });
     });
+
+    it('records build/lint/test defaults for the built-in library generators', () => {
+      const generators = readJson('nx.json').generators;
+
+      expect(generators?.['@nx/js:library']).toMatchObject({
+        bundler: 'none',
+        linter: 'eslint',
+        unitTestRunner: 'jest',
+      });
+      expect(generators?.['@nx/react:library']).toMatchObject({
+        bundler: 'none',
+        linter: 'eslint',
+        unitTestRunner: 'jest',
+      });
+    });
   });
 
   describe('module boundaries', () => {
