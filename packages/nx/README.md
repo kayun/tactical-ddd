@@ -4,7 +4,7 @@
 
 The suite is being built out incrementally. Generators currently available:
 
-- [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, and the Shared Kernel) in one step.
+- [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset such as React) in one step.
 - [`shared-kernel`](#shared-kernel-generator) — scaffolds the Shared Kernel, the agnostic foundation reused by every other module.
 
 > More generators (e.g. `domain`) are planned. This document covers the generators shipped today.
@@ -13,7 +13,7 @@ The suite is being built out incrementally. Generators currently available:
 
 The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace. Run it once, right after creating your Nx workspace, and it wires up everything the rest of the ecosystem relies on. It is a composing generator — it does not duplicate logic, but orchestrates the lower-level pieces:
 
-1. **Workspace generator defaults** — persists shared options into `nx.json` so they are configured **once** and Nx injects them automatically into later generator invocations, so you never have to retype them. Two groups are written: the organization `prefix` plus `linter`/`unitTestRunner` for our own `@tactical-ddd/nx` generators, and the same `bundler`/`linter`/`unitTestRunner` choices for the built-in `@nx/js:library` and `@nx/react:library` generators — so even a hand-rolled `nx g @nx/js:library` already matches the conventions:
+1. **Workspace generator defaults** — persists shared options into `nx.json` so they are configured **once** and Nx injects them automatically into later generator invocations, so you never have to retype them. Two groups are written: the organization `prefix` plus `linter`/`unitTestRunner` for our own `@tactical-ddd/nx` generators, and the same `bundler`/`linter`/`unitTestRunner` choices for the built-in `@nx/js:library` generator — so even a hand-rolled `nx g @nx/js:library` already matches the conventions. The matching `@nx/react:library` defaults are added only under the `react` preset:
 
    ```jsonc
    // nx.json
@@ -31,6 +31,7 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
          "linter": "eslint",
          "unitTestRunner": "jest",
        },
+       // Added only with `--preset=react`:
        "@nx/react:library": {
          "bundler": "none",
          "linter": "eslint",
@@ -44,7 +45,9 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
 
 3. **Shared Kernel** — invokes the [`shared-kernel`](#shared-kernel-generator) generator to scaffold `libs/shared/{contracts,utils,infrastructure}`.
 
-4. **Dependency check & install** — ensures the Nx plugin packages the configured and invoked generators rely on are present in the workspace `package.json`, installing any that are missing (via `addDependenciesToPackageJson`). Versions are pinned to the workspace's Nx version. The set is scoped to your choices: `@nx/js` and `@nx/react` always; `@nx/eslint` + `@nx/eslint-plugin` when `linter: eslint`; and `@nx/jest` or `@nx/vite` to match `unitTestRunner`. Already-installed packages are left untouched (never downgraded).
+4. **Framework preset** _(optional)_ — with `--preset=react`, the workspace is additionally set up for React: the `@nx/react:library` generator defaults above are written, the `@nx/react` generator plugin is added, and the React runtime — `react`, `react-dom` and the [`@tactical-ddd/react`](https://www.npmjs.com/package/@tactical-ddd/react) bindings — is installed as a production dependency. With the default `--preset=none` the workspace stays framework-agnostic and none of the React tooling is pulled in.
+
+5. **Dependency check & install** — ensures the packages the configured and invoked generators rely on are present in the workspace `package.json`, installing any that are missing (via `addDependenciesToPackageJson`). Nx plugin versions are pinned to the workspace's Nx version. The set is scoped to your choices: `@nx/js` always; `@nx/eslint` + `@nx/eslint-plugin` when `linter: eslint`; `@nx/jest` or `@nx/vite` to match `unitTestRunner`; and the React packages above when `preset: react`. Already-installed packages are left untouched (never downgraded).
 
 > Order matters and is handled for you: the Shared Kernel is generated first (in a fresh workspace the root ESLint config only exists after the first library is created), then the module-boundary rules are applied to it.
 
@@ -54,17 +57,24 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
 nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=jest
 ```
 
+For a React workspace, add the preset to also install `@tactical-ddd/react` and the React tooling:
+
+```bash
+nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=jest --preset=react
+```
+
 When run interactively (or via Nx Console), the generator prompts for any required option that is not passed on the command line.
 
 ### Options
 
-| Option            | Type     | Default       | Required | Description                                                                                                   |
-| ----------------- | -------- | ------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
-| `prefix`          | `string` | —             | Yes      | Organization prefix used for the generated library names, e.g. `@my-org`. Set once, reused by all generators. |
-| `sharedDirectory` | `string` | `libs/shared` | No       | Root folder the Shared Kernel libraries are generated into.                                                   |
-| `linter`          | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                     |
-| `unitTestRunner`  | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                                  |
-| `bundler`         | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                |
+| Option            | Type     | Default       | Required | Description                                                                                                                             |
+| ----------------- | -------- | ------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `prefix`          | `string` | —             | Yes      | Organization prefix used for the generated library names, e.g. `@my-org`. Set once, reused by all generators.                           |
+| `sharedDirectory` | `string` | `libs/shared` | No       | Root folder the Shared Kernel libraries are generated into.                                                                             |
+| `linter`          | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                                               |
+| `unitTestRunner`  | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                                                            |
+| `bundler`         | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                                          |
+| `preset`          | `string` | `none`        | No       | Framework preset. `react` also installs `@tactical-ddd/react`, the React runtime, and React generator defaults. One of `none`, `react`. |
 
 > The generator is idempotent: re-running it refreshes the `nx.json` defaults and module-boundary rules and safely skips Shared Kernel libraries that already exist.
 >

@@ -8,7 +8,7 @@
     "init": {
       "factory": "./src/generators/init/init",
       "schema": "./src/generators/init/schema.json",
-      "description": "Initial setup for a new Nx workspace"
+      "description": "Bootstrap a Tactical DDD workspace: generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset (e.g. React)"
     }
   }
 }
