@@ -36,8 +36,10 @@ const PREFIXED_GENERATORS = ['shared-kernel'] as const;
 
 export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
   setGeneratorDefaults(tree, options);
-  setModuleBoundaries(tree);
 
+  // Generate the shared kernel first: in a fresh workspace the root ESLint
+  // config does not exist until the first library is generated, so this is what
+  // establishes the config that `setModuleBoundaries` then tunes.
   await sharedKernelGenerator(tree, {
     directory: options.sharedDirectory,
     prefix: options.prefix,
@@ -45,6 +47,8 @@ export async function initGenerator(tree: Tree, options: InitGeneratorSchema) {
     unitTestRunner: options.unitTestRunner,
     bundler: options.bundler,
   });
+
+  setModuleBoundaries(tree);
 
   await formatFiles(tree);
 }
