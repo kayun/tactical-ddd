@@ -11,6 +11,19 @@ import type { SharedKernelGeneratorSchema } from './schema';
 import { LibraryScope, LibraryType, ModuleFormat } from '../../types';
 import { resolveLibraryModuleFormat } from '../../utils/resolve-module-format';
 
+/**
+ * Whether a kernel library has actually been generated at `root`.
+ *
+ * We key off the library manifest (`package.json`) rather than the directory:
+ * `tree.exists(root)` is `true` for *any* existing directory — including an
+ * empty leftover from an aborted run — which would make the generator wrongly
+ * skip a layer that has no files in it. A `package.json` only exists once
+ * `@nx/js:library` has scaffolded the library, so it is the reliable marker.
+ */
+function libraryExists(tree: Tree, root: string): boolean {
+  return tree.exists(`${root}/package.json`);
+}
+
 export async function sharedKernelGenerator(
   tree: Tree,
   options: SharedKernelGeneratorSchema,
@@ -20,7 +33,7 @@ export async function sharedKernelGenerator(
   const utilsRoot = `${sharedDirectory}/utils`;
   const infrastructureRoot = `${sharedDirectory}/infrastructure`;
 
-  if (!tree.exists(contractsRoot)) {
+  if (!libraryExists(tree, contractsRoot)) {
     console.log(`Creating contracts library at ${contractsRoot}...`);
 
     await libraryGenerator(tree, {
@@ -50,7 +63,7 @@ export async function sharedKernelGenerator(
     console.log(`Contracts library already exists at ${contractsRoot}`);
   }
 
-  if (!tree.exists(utilsRoot)) {
+  if (!libraryExists(tree, utilsRoot)) {
     console.log(`Creating utils library at ${utilsRoot}...`);
 
     await libraryGenerator(tree, {
@@ -71,7 +84,7 @@ export async function sharedKernelGenerator(
     console.log(`Utils library already exists at ${utilsRoot}`);
   }
 
-  if (!tree.exists(infrastructureRoot)) {
+  if (!libraryExists(tree, infrastructureRoot)) {
     console.log(`Creating infrastructure library at ${infrastructureRoot}...`);
 
     await libraryGenerator(tree, {

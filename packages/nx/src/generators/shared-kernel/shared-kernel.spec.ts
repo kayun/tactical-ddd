@@ -352,5 +352,17 @@ describe('shared-kernel generator', () => {
 
       expect(getProjects(tree).size).toBe(LAYERS.length);
     });
+
+    it('scaffolds a layer whose directory exists but was never generated', async () => {
+      // An aborted run can leave an empty `libs/shared/<layer>` directory with
+      // no library manifest. The directory existing must not make the generator
+      // skip the layer — it should still be scaffolded.
+      tree.write('libs/shared/contracts/src/.gitkeep', '');
+
+      await sharedKernelGenerator(tree, baseOptions);
+
+      expect(tree.exists('libs/shared/contracts/package.json')).toBe(true);
+      expect(tree.exists('libs/shared/contracts/src/index.ts')).toBe(true);
+    });
   });
 });
