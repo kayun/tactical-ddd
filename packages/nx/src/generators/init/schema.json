@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/schema",
-  "$id": "Init",
+  "$id": "InitGenerator",
   "title": "Tactical DDD: Init Generator",
   "type": "object",
   "properties": {

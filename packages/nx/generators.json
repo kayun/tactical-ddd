@@ -9,6 +9,11 @@
       "factory": "./src/generators/init/init",
       "schema": "./src/generators/init/schema.json",
       "description": "Bootstrap a Tactical DDD workspace: generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset (e.g. React)"
+    },
+    "domain": {
+      "factory": "./src/generators/domain/domain",
+      "schema": "./src/generators/domain/schema.json",
+      "description": "domain"
     }
   }
 }
