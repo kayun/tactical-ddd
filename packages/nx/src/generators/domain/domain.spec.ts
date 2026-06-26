@@ -161,7 +161,11 @@ describe('domain generator', () => {
     it('is safe to run multiple times without throwing', async () => {
       await domainGenerator(tree, baseOptions);
 
-      await expect(domainGenerator(tree, baseOptions)).resolves.not.toThrow();
+      // Resolves to the install task; assert on the value rather than invoking
+      // it (which `.toThrow()` would do, spawning a real package install).
+      await expect(domainGenerator(tree, baseOptions)).resolves.toEqual(
+        expect.any(Function),
+      );
     });
   });
 });

@@ -125,6 +125,28 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
     });
   });
 
+  describe('inferred tasks (Project Crystal)', () => {
+    it('registers the inferred ESLint and Jest plugins in nx.json', () => {
+      const plugins = (readJson('nx.json').plugins ?? []).map(
+        (plugin: string | { plugin: string }) =>
+          typeof plugin === 'string' ? plugin : plugin.plugin,
+      );
+
+      expect(plugins).toEqual(
+        expect.arrayContaining(['@nx/eslint/plugin', '@nx/jest/plugin']),
+      );
+    });
+
+    it('emits no deprecated executor targets on the generated libraries', () => {
+      // Tasks are inferred from config files by the plugins above, so the
+      // libraries carry no explicit `lint`/`test`/`build` executor targets.
+      for (const layer of LAYERS) {
+        const targets = readLibManifest(layer).nx?.targets ?? {};
+        expect(Object.keys(targets)).toEqual([]);
+      }
+    });
+  });
+
   describe('module boundaries', () => {
     it('wires the architecture dep-constraints into the root ESLint config', () => {
       const config = readEslintConfig();

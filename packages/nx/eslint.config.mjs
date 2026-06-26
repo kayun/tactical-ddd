@@ -18,7 +18,12 @@ export default [
           // not be a hard dependency of the plugin (that would force every
           // consumer to install React tooling), so it is intentionally absent
           // from `dependencies`.
-          ignoredDependencies: ['@swc/helpers', '@nx/react'],
+          //
+          // `eslint` is only ever imported for its `Linter` *type* (erased at
+          // runtime). Declaring it as a runtime dependency would drag ESLint 8
+          // into consumer workspaces and flip `@nx/eslint`'s config detection to
+          // the legacy `.eslintrc` format, so it stays out of `dependencies`.
+          ignoredDependencies: ['@swc/helpers', '@nx/react', 'eslint'],
         },
       ],
     },

@@ -3,6 +3,7 @@ import {
   formatFiles,
   NX_VERSION,
   readNxJson,
+  runTasksInSerial,
   updateNxJson,
   type GeneratorCallback,
   type NxJsonConfiguration,
@@ -78,7 +79,7 @@ export async function initGenerator(
   // Generate the shared kernel first: in a fresh workspace the root ESLint
   // config does not exist until the first library is generated, so this is what
   // establishes the config that `applyDepConstraints` then tunes.
-  await sharedKernelGenerator(tree, {
+  const installKernel = await sharedKernelGenerator(tree, {
     directory: options.sharedDirectory,
     prefix: options.prefix,
     linter: options.linter,
@@ -93,7 +94,10 @@ export async function initGenerator(
 
   await formatFiles(tree);
 
-  return installDependencies;
+  // Run both the plugin-dependency install and the shared kernel's own install
+  // callbacks (the latter installs the packages backing the inferred ESLint/Jest
+  // plugins the generated libraries registered).
+  return runTasksInSerial(installDependencies, installKernel);
 }
 
 /**

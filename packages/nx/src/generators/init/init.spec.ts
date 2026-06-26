@@ -241,54 +241,16 @@ describe('init generator', () => {
       expect(config).toContain(LibraryScope.Shared);
     });
 
-    it('stays idempotent on a legacy .eslintrc.json root even when detection reports flat config', async () => {
-      // Reproduces the e2e regression: a workspace scaffolded against ESLint 8
-      // keeps a legacy `.eslintrc.json`, but our plugin install bumps ESLint to
-      // >= 9, flipping `@nx/eslint`'s `useFlatConfig()` to flat. The flat AST
-      // utils then read a non-existent flat config and throw. We pin
-      // `ESLINT_USE_FLAT_CONFIG=true` to stand in for the post-bump detection.
-      tree.delete(ESLINT_CONFIG);
-      tree.write(
-        '.eslintrc.json',
-        JSON.stringify({
-          root: true,
-          overrides: [
-            {
-              files: ['*.ts', '*.tsx', '*.js', '*.jsx'],
-              rules: {
-                '@nx/enforce-module-boundaries': [
-                  'error',
-                  { enforceBuildableLibDependency: true, depConstraints: [] },
-                ],
-              },
-            },
-          ],
-        }),
+    it('re-running init leaves the module-boundary rule intact (idempotent)', async () => {
+      await initGenerator(tree, baseOptions);
+
+      await expect(initGenerator(tree, baseOptions)).resolves.toEqual(
+        expect.any(Function),
       );
 
-      const previous = process.env.ESLINT_USE_FLAT_CONFIG;
-      process.env.ESLINT_USE_FLAT_CONFIG = 'true';
-
-      try {
-        await initGenerator(tree, baseOptions);
-
-        await expect(initGenerator(tree, baseOptions)).resolves.toEqual(
-          expect.any(Function),
-        );
-
-        // The legacy root config was updated in place, not abandoned.
-        expect(tree.read('.eslintrc.json', 'utf-8') ?? '').toContain(
-          'scope:shared',
-        );
-        // The caller's env value is left exactly as it was found.
-        expect(process.env.ESLINT_USE_FLAT_CONFIG).toBe('true');
-      } finally {
-        if (previous === undefined) {
-          delete process.env.ESLINT_USE_FLAT_CONFIG;
-        } else {
-          process.env.ESLINT_USE_FLAT_CONFIG = previous;
-        }
-      }
+      const config = tree.read(ESLINT_CONFIG, 'utf-8') ?? '';
+      expect(config).toContain('onlyDependOnLibsWithTags');
+      expect(config).not.toMatch(/depConstraints:\s*\[\s*\]/);
     });
 
     it('does not throw when no ESLint config is present', async () => {
@@ -357,14 +319,19 @@ describe('init generator', () => {
       ).toBeDefined();
     });
 
-    it('forwards the unitTestRunner option so testable layers get a test target', async () => {
+    it('forwards the unitTestRunner option so testable layers get a jest config', async () => {
       await initGenerator(tree, { ...baseOptions, unitTestRunner: 'jest' });
 
-      expect(
-        readProjectConfiguration(tree, '@my-org/shared-utils').targets?.[
-          'test'
-        ],
-      ).toBeDefined();
+      const { root } = readProjectConfiguration(tree, '@my-org/shared-utils');
+      const hasJestConfig = [
+        'jest.config.ts',
+        'jest.config.cts',
+        'jest.config.js',
+        'jest.config.cjs',
+        'jest.config.mjs',
+      ].some((name) => tree.exists(`${root}/${name}`));
+
+      expect(hasJestConfig).toBe(true);
     });
   });
 

@@ -29,98 +29,6 @@ const DEFAULT_RULE_OPTIONS = {
 };
 
 /**
- * Root-level ESLint config filenames, grouped by format. `@nx/eslint`'s AST
- * utilities branch on `useFlatConfig()`, which — absent the
- * `ESLINT_USE_FLAT_CONFIG` env var and a flat config file — falls back to the
- * *installed* ESLint version (>= 9 ⇒ flat). We use these to detect the format
- * actually on disk; see {@link withAlignedEslintConfigDetection}.
- */
-const FLAT_ESLINT_CONFIG_FILES = [
-  'eslint.config.js',
-  'eslint.config.cjs',
-  'eslint.config.mjs',
-  'eslint.config.ts',
-  'eslint.config.cts',
-  'eslint.config.mts',
-];
-const LEGACY_ESLINT_CONFIG_FILES = [
-  '.eslintrc.json',
-  '.eslintrc.js',
-  '.eslintrc.cjs',
-  '.eslintrc.yaml',
-  '.eslintrc.yml',
-  '.eslintrc',
-];
-
-/**
- * Pins `@nx/eslint`'s `useFlatConfig()` to the root config format actually on
- * disk and returns a disposer that restores the previous `ESLINT_USE_FLAT_CONFIG`
- * value. Only the unambiguous single-format cases are pinned; a workspace with
- * neither (or both) is left to Nx's own detection.
- *
- * Two things go wrong without this, both rooted in the same desync — a
- * workspace scaffolded against ESLint 8 keeps a legacy `.eslintrc.*`, but our
- * own plugin install bumps ESLint to >= 9, flipping `useFlatConfig()` to flat:
- *   1. The flat-config AST utils mis-target a non-existent flat config (reading
- *      `undefined`, which throws) when updating module boundaries.
- *   2. Library generators emit *flat* per-project configs that try to extend a
- *      legacy root config, so `nx lint` later fails with "baseConfig is not
- *      iterable". Pinning keeps generated lib configs in the root's format.
- */
-export function pinEslintConfigDetection(tree: Tree): () => void {
-  const hasFlat = FLAT_ESLINT_CONFIG_FILES.some((file) => tree.exists(file));
-  const hasLegacy = LEGACY_ESLINT_CONFIG_FILES.some((file) =>
-    tree.exists(file),
-  );
-
-  let pinned: 'true' | 'false' | undefined;
-  if (hasLegacy && !hasFlat) {
-    pinned = 'false';
-  } else if (hasFlat && !hasLegacy) {
-    pinned = 'true';
-  }
-
-  const previous = process.env.ESLINT_USE_FLAT_CONFIG;
-  if (pinned !== undefined) {
-    process.env.ESLINT_USE_FLAT_CONFIG = pinned;
-  }
-
-  return () => {
-    if (previous === undefined) {
-      delete process.env.ESLINT_USE_FLAT_CONFIG;
-    } else {
-      process.env.ESLINT_USE_FLAT_CONFIG = previous;
-    }
-  };
-}
-
-/** Synchronous {@link pinEslintConfigDetection} wrapper around `run`. */
-export function withAlignedEslintConfigDetection(tree: Tree, run: () => void) {
-  const restore = pinEslintConfigDetection(tree);
-  try {
-    run();
-  } finally {
-    restore();
-  }
-}
-
-/**
- * Async {@link pinEslintConfigDetection} wrapper: keeps the detection pinned for
- * the whole of an awaited `run` (e.g. library generation), then restores it.
- */
-export async function withAlignedEslintConfigDetectionAsync<T>(
-  tree: Tree,
-  run: () => Promise<T>,
-): Promise<T> {
-  const restore = pinEslintConfigDetection(tree);
-  try {
-    return await run();
-  } finally {
-    restore();
-  }
-}
-
-/**
  * Merges `incoming` constraints into `existing`, keyed by `sourceTag`: an
  * incoming constraint replaces any existing one with the same `sourceTag`,
  * otherwise it is appended. Order of first appearance is preserved so the
@@ -141,8 +49,7 @@ function mergeConstraints(
  * Ensures the root `@nx/enforce-module-boundaries` rule exists and that every
  * constraint in `constraints` is present in its `depConstraints` (merged by
  * `sourceTag`). Existing rule options are preserved; the baseline options are
- * filled in for any that are missing. Both flat config (`eslint.config.*`) and
- * legacy `.eslintrc.*` are detected and updated via AST manipulation.
+ * filled in for any that are missing.
  *
  * Returns `false` (and warns) when there is no ESLint config to update — e.g.
  * the workspace was set up with `linter: none`.
@@ -158,13 +65,6 @@ export function applyDepConstraints(
     return false;
   }
 
-  withAlignedEslintConfigDetection(tree, () =>
-    upsertModuleBoundaries(tree, constraints),
-  );
-  return true;
-}
-
-function upsertModuleBoundaries(tree: Tree, constraints: DepConstraint[]) {
   const hasRule = lintConfigHasOverride(tree, '', (override) =>
     Boolean(override.rules?.[MODULE_BOUNDARIES_RULE]),
   );
@@ -179,7 +79,7 @@ function upsertModuleBoundaries(tree: Tree, constraints: DepConstraint[]) {
         ],
       },
     });
-    return;
+    return true;
   }
 
   updateOverrideInLintConfig(
@@ -219,4 +119,5 @@ function upsertModuleBoundaries(tree: Tree, constraints: DepConstraint[]) {
       };
     },
   );
+  return true;
 }

@@ -51,9 +51,11 @@ describe('shared-kernel generator', () => {
   });
 
   it('should run successfully', async () => {
-    await expect(
-      sharedKernelGenerator(tree, baseOptions),
-    ).resolves.not.toThrow();
+    // Resolves to the install task; assert on the value rather than invoking it
+    // (which `.toThrow()` would do, spawning a real package install).
+    await expect(sharedKernelGenerator(tree, baseOptions)).resolves.toEqual(
+      expect.any(Function),
+    );
   });
 
   describe('library creation', () => {
@@ -150,8 +152,32 @@ describe('shared-kernel generator', () => {
     });
   });
 
+  // Tasks are inferred (Project Crystal) rather than written as explicit
+  // executor targets, so these assert the per-layer config files the inferred
+  // plugins key off — robust to both flat (`eslint.config.*`) and, in the
+  // ESLint-8 unit env, legacy (`.eslintrc.*`) formats.
+  const ESLINT_CONFIG_FILES = [
+    'eslint.config.mjs',
+    'eslint.config.js',
+    'eslint.config.cjs',
+    '.eslintrc.json',
+    '.eslintrc.js',
+    '.eslintrc.cjs',
+  ];
+  const JEST_CONFIG_FILES = [
+    'jest.config.ts',
+    'jest.config.cts',
+    'jest.config.js',
+    'jest.config.cjs',
+    'jest.config.mjs',
+  ];
+  const layerHasConfig = (project: string, candidates: string[]): boolean => {
+    const { root } = readProjectConfiguration(tree, project);
+    return candidates.some((name) => tree.exists(`${root}/${name}`));
+  };
+
   describe('unitTestRunner option', () => {
-    it('always generates contracts without a test target', async () => {
+    it('always generates contracts without a test setup', async () => {
       // contracts holds only compile-time types, so it is hard-coded to 'none'
       // regardless of the requested runner.
       await sharedKernelGenerator(tree, {
@@ -159,64 +185,53 @@ describe('shared-kernel generator', () => {
         unitTestRunner: 'jest',
       });
 
-      const { targets } = readProjectConfiguration(tree, 'shared-contracts');
-      expect(targets?.['test']).toBeUndefined();
+      expect(layerHasConfig('shared-contracts', JEST_CONFIG_FILES)).toBe(false);
     });
 
-    it('adds a test target to utils and infrastructure when jest is selected', async () => {
+    it('sets up jest for utils and infrastructure when jest is selected', async () => {
       await sharedKernelGenerator(tree, {
         ...baseOptions,
         unitTestRunner: 'jest',
       });
 
-      expect(
-        readProjectConfiguration(tree, 'shared-utils').targets?.['test'],
-      ).toBeDefined();
-      expect(
-        readProjectConfiguration(tree, 'shared-infrastructure').targets?.[
-          'test'
-        ],
-      ).toBeDefined();
+      expect(layerHasConfig('shared-utils', JEST_CONFIG_FILES)).toBe(true);
+      expect(layerHasConfig('shared-infrastructure', JEST_CONFIG_FILES)).toBe(
+        true,
+      );
     });
 
-    it('adds no test target anywhere when the runner is none', async () => {
+    it('sets up no test runner anywhere when the runner is none', async () => {
       await sharedKernelGenerator(tree, {
         ...baseOptions,
         unitTestRunner: 'none',
       });
 
       for (const { project } of LAYERS) {
-        expect(
-          readProjectConfiguration(tree, project).targets?.['test'],
-        ).toBeUndefined();
+        expect(layerHasConfig(project, JEST_CONFIG_FILES)).toBe(false);
       }
     });
   });
 
   describe('linter option', () => {
-    it('adds a lint target to every layer when eslint is selected', async () => {
+    it('sets up eslint for every layer when eslint is selected', async () => {
       await sharedKernelGenerator(tree, {
         ...baseOptions,
         linter: 'eslint',
       });
 
       for (const { project } of LAYERS) {
-        expect(
-          readProjectConfiguration(tree, project).targets?.['lint'],
-        ).toBeDefined();
+        expect(layerHasConfig(project, ESLINT_CONFIG_FILES)).toBe(true);
       }
     });
 
-    it('adds no lint target when the linter is none', async () => {
+    it('sets up no linter when the linter is none', async () => {
       await sharedKernelGenerator(tree, {
         ...baseOptions,
         linter: 'none',
       });
 
       for (const { project } of LAYERS) {
-        expect(
-          readProjectConfiguration(tree, project).targets?.['lint'],
-        ).toBeUndefined();
+        expect(layerHasConfig(project, ESLINT_CONFIG_FILES)).toBe(false);
       }
     });
   });
@@ -327,9 +342,11 @@ describe('shared-kernel generator', () => {
     it('is safe to run multiple times without throwing', async () => {
       await sharedKernelGenerator(tree, baseOptions);
 
-      await expect(
-        sharedKernelGenerator(tree, baseOptions),
-      ).resolves.not.toThrow();
+      // Resolves to the install task; assert on the value rather than invoking
+      // it (which `.toThrow()` would do, spawning a real package install).
+      await expect(sharedKernelGenerator(tree, baseOptions)).resolves.toEqual(
+        expect.any(Function),
+      );
     });
 
     it('does not recreate or overwrite libraries that already exist', async () => {
