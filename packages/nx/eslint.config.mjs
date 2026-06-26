@@ -12,7 +12,13 @@ export default [
           // `@swc/helpers` is a runtime dependency injected by the SWC build
           // (`externalHelpers: true` emits `require("@swc/helpers/...")`), so it
           // never appears as an import in the source the rule scans.
-          ignoredDependencies: ['@swc/helpers'],
+          //
+          // `@nx/react` is an *optional* peer the domain generator loads on
+          // demand via `ensurePackage` only under the `react` preset — it must
+          // not be a hard dependency of the plugin (that would force every
+          // consumer to install React tooling), so it is intentionally absent
+          // from `dependencies`.
+          ignoredDependencies: ['@swc/helpers', '@nx/react'],
         },
       ],
     },
