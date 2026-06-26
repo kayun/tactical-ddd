@@ -8,45 +8,11 @@ import {
   type NxJsonConfiguration,
   type Tree,
 } from '@nx/devkit';
-import {
-  addOverrideToLintConfig,
-  isEslintConfigSupported,
-  lintConfigHasOverride,
-  updateOverrideInLintConfig,
-} from '@nx/eslint/internal';
-
-import type { Linter } from 'eslint';
 
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
+import { applyDepConstraints } from '../../utils/eslint-module-boundaries';
 import sharedKernelGenerator from '../shared-kernel/shared-kernel';
-
-/** The module-boundaries rule whose `depConstraints` encode the dependency graph. */
-const MODULE_BOUNDARIES_RULE = '@nx/enforce-module-boundaries';
-
-/**
- * Root-level ESLint config filenames, grouped by format. `@nx/eslint`'s AST
- * utilities branch on `useFlatConfig()`, which — absent the
- * `ESLINT_USE_FLAT_CONFIG` env var and a flat config file — falls back to the
- * *installed* ESLint version (>= 9 ⇒ flat). We use these to detect the format
- * actually on disk; see `withAlignedEslintConfigDetection`.
- */
-const FLAT_ESLINT_CONFIG_FILES = [
-  'eslint.config.js',
-  'eslint.config.cjs',
-  'eslint.config.mjs',
-  'eslint.config.ts',
-  'eslint.config.cts',
-  'eslint.config.mts',
-];
-const LEGACY_ESLINT_CONFIG_FILES = [
-  '.eslintrc.json',
-  '.eslintrc.js',
-  '.eslintrc.cjs',
-  '.eslintrc.yaml',
-  '.eslintrc.yml',
-  '.eslintrc',
-];
 
 /**
  * Collection name this plugin publishes its generators under. Used as the key
@@ -111,7 +77,7 @@ export async function initGenerator(
 
   // Generate the shared kernel first: in a fresh workspace the root ESLint
   // config does not exist until the first library is generated, so this is what
-  // establishes the config that `setModuleBoundaries` then tunes.
+  // establishes the config that `applyDepConstraints` then tunes.
   await sharedKernelGenerator(tree, {
     directory: options.sharedDirectory,
     prefix: options.prefix,
@@ -120,7 +86,10 @@ export async function initGenerator(
     bundler: options.bundler,
   });
 
-  setModuleBoundaries(tree);
+  // Populate the root ESLint config with the Tactical DDD dependency graph so
+  // the architecture is enforced at lint time. Skipped (with a warning) when
+  // the workspace has no ESLint config — e.g. `linter: none`.
+  applyDepConstraints(tree, DEP_CONSTRAINTS);
 
   await formatFiles(tree);
 
@@ -219,6 +188,7 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
       prefix: options.prefix,
       linter: options.linter,
       unitTestRunner: options.unitTestRunner,
+      preset: options.preset,
     };
   }
 
@@ -246,116 +216,6 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
   }
 
   updateNxJson(tree, nxJson);
-}
-
-/**
- * Configures `@nx/enforce-module-boundaries` in the root ESLint flat config with
- * the Tactical DDD `depConstraints`, so the architecture's dependency graph (and
- * the absence of circular dependencies) is enforced at lint time.
- *
- * The existing rule block — created by Nx with an empty `depConstraints: []` —
- * is updated in place via AST manipulation. If no such block exists yet, a new
- * override carrying the full rule is appended.
- */
-function setModuleBoundaries(tree: Tree) {
-  if (!isEslintConfigSupported(tree)) {
-    console.warn(
-      'No supported ESLint flat config found at the workspace root — skipping module boundary rules.',
-    );
-    return;
-  }
-
-  // `@nx/eslint`'s flat-config AST utils mis-target a non-existent flat config
-  // (reading `undefined`, which throws) when their detection disagrees with the
-  // config on disk. This happens on a re-run: a workspace scaffolded against
-  // ESLint 8 keeps a legacy `.eslintrc.*`, but our own plugin install bumps
-  // ESLint to >= 9, flipping `useFlatConfig()` to flat. Pin the detection to the
-  // format actually present for the duration of the AST work.
-  withAlignedEslintConfigDetection(tree, () => updateModuleBoundaries(tree));
-}
-
-/**
- * Forces `@nx/eslint`'s `useFlatConfig()` to agree with the root config format
- * actually on disk while `run` executes, then restores the previous
- * `ESLINT_USE_FLAT_CONFIG` value. Only the unambiguous single-format cases are
- * pinned; a workspace with neither (or both) is left to Nx's own detection.
- */
-function withAlignedEslintConfigDetection(tree: Tree, run: () => void) {
-  const hasFlat = FLAT_ESLINT_CONFIG_FILES.some((file) => tree.exists(file));
-  const hasLegacy = LEGACY_ESLINT_CONFIG_FILES.some((file) =>
-    tree.exists(file),
-  );
-
-  let pinned: 'true' | 'false' | undefined;
-  if (hasLegacy && !hasFlat) {
-    pinned = 'false';
-  } else if (hasFlat && !hasLegacy) {
-    pinned = 'true';
-  }
-
-  const previous = process.env.ESLINT_USE_FLAT_CONFIG;
-  if (pinned !== undefined) {
-    process.env.ESLINT_USE_FLAT_CONFIG = pinned;
-  }
-
-  try {
-    run();
-  } finally {
-    if (previous === undefined) {
-      delete process.env.ESLINT_USE_FLAT_CONFIG;
-    } else {
-      process.env.ESLINT_USE_FLAT_CONFIG = previous;
-    }
-  }
-}
-
-function updateModuleBoundaries(tree: Tree) {
-  const hasRule = lintConfigHasOverride(tree, '', (override) =>
-    Boolean(override.rules?.[MODULE_BOUNDARIES_RULE]),
-  );
-
-  if (hasRule) {
-    updateOverrideInLintConfig(
-      tree,
-      '',
-      (override) => Boolean(override.rules?.[MODULE_BOUNDARIES_RULE]),
-      (override) => {
-        const rules = override.rules ?? {};
-        const rule = rules[MODULE_BOUNDARIES_RULE];
-        const [severity = 'error', ruleOptions = {}] = Array.isArray(rule)
-          ? rule
-          : [];
-
-        const updatedRule: Linter.RuleEntry = [
-          severity as Linter.RuleSeverity,
-          {
-            ...(ruleOptions as Record<string, unknown>),
-            depConstraints: DEP_CONSTRAINTS,
-          },
-        ];
-
-        return {
-          ...override,
-          rules: { ...rules, [MODULE_BOUNDARIES_RULE]: updatedRule },
-        };
-      },
-    );
-    return;
-  }
-
-  addOverrideToLintConfig(tree, '', {
-    files: ['**/*.ts', '**/*.js'],
-    rules: {
-      [MODULE_BOUNDARIES_RULE]: [
-        'error',
-        {
-          enforceBuildableLibDependency: true,
-          allow: ['^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$'],
-          depConstraints: DEP_CONSTRAINTS,
-        },
-      ],
-    },
-  });
 }
 
 export default initGenerator;
