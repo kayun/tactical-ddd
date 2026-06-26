@@ -1,14 +1,42 @@
 import { type Tree } from '@nx/devkit';
-import {
-  addOverrideToLintConfig,
-  isEslintConfigSupported,
-  lintConfigHasOverride,
-  updateOverrideInLintConfig,
-} from '@nx/eslint/internal';
 
 import type { Linter } from 'eslint';
 
 import { warning } from './logger';
+
+/**
+ * The slice of `@nx/eslint`'s flat-config AST utilities this module relies on.
+ */
+type EslintConfigUtils = Pick<
+  typeof import('@nx/eslint/internal'),
+  | 'addOverrideToLintConfig'
+  | 'isEslintConfigSupported'
+  | 'lintConfigHasOverride'
+  | 'updateOverrideInLintConfig'
+>;
+
+/**
+ * Loads `@nx/eslint`'s ESLint-config AST utilities across Nx major versions.
+ *
+ * Nx >= 23 exposes them through the curated `@nx/eslint/internal` subpath. Nx 22
+ * has no such subpath (requiring it throws "Cannot find module
+ * '@nx/eslint/internal'"), but ships no `package.json` `exports` map either, so
+ * the utilities can be required directly from their module path instead.
+ */
+function loadEslintConfigUtils(): EslintConfigUtils {
+  try {
+    return require('@nx/eslint/internal');
+  } catch {
+    return require('@nx/eslint/src/generators/utils/eslint-file');
+  }
+}
+
+const {
+  addOverrideToLintConfig,
+  isEslintConfigSupported,
+  lintConfigHasOverride,
+  updateOverrideInLintConfig,
+} = loadEslintConfigUtils();
 
 /** The module-boundaries rule whose `depConstraints` encode the dependency graph. */
 export const MODULE_BOUNDARIES_RULE = '@nx/enforce-module-boundaries';
