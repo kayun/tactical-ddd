@@ -6,8 +6,7 @@ The suite is being built out incrementally. Generators currently available:
 
 - [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset such as React) in one step.
 - [`shared-kernel`](#shared-kernel-generator) — scaffolds the Shared Kernel, the agnostic foundation reused by every other module.
-
-> More generators (e.g. `domain`) are planned. This document covers the generators shipped today.
+- [`domain`](#domain-generator) — scaffolds a bounded business domain (its `contracts`/`core`/`ui`/`features` layers) and wires up cross-domain isolation.
 
 ## Init Generator
 
@@ -236,3 +235,68 @@ The generator automatically tags these projects with `scope:shared`. In your roo
    - `contracts` knows about no one.
    - `utils` only knows about `contracts`.
    - `infrastructure` knows about both `contracts` and `utils`.
+
+## Domain Generator
+
+The `domain` generator scaffolds a single **bounded business domain** (e.g. `auth`, `payments`, `beneficiaries`) under `libs/[domain-name]/`. Each domain is isolated from every other domain and depends only on the Shared Kernel and — for collaboration — the **public contracts** of other domains.
+
+It generates one library per selected layer, tags each with `scope:domain` plus its layer type and a domain tag (`domain:<name>`), and registers a per-domain module-boundary constraint that enforces the isolation described below.
+
+### Layers
+
+The `--layers` option selects which layers to generate (default: `contracts,core`):
+
+| Layer       | Tags                             | Purpose                                                                                   |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `contracts` | `scope:domain`, `type:contracts` | Domain-specific types, events, and ports/API boundaries. The domain's **public surface**. |
+| `core`      | `scope:domain`, `type:core`      | Pure business logic — entities, value objects, use cases, repository interfaces.          |
+| `ui`        | `scope:domain`, `type:ui`        | Presentational components (a DOM lib is added to `tsconfig` for browser globals).         |
+| `features`  | `scope:domain`, `type:features`  | UI + state, framework bindings, DI containers — the topmost layer.                        |
+
+> Under `--preset=react`, the `ui` and `features` layers are generated as React libraries (via `@nx/react`, loaded only when the preset is set); otherwise they are framework-agnostic `@nx/js` libraries.
+
+### Cross-domain isolation (published-language)
+
+The generator injects a per-domain `@nx/enforce-module-boundaries` constraint so that a `domain:<name>` library may depend only on:
+
+- its **own** domain (`domain:<name>`),
+- the **Shared Kernel** (`scope:shared`),
+- and the **public contracts of any other domain** (`type:contracts`).
+
+This is the **published-language** pattern: a domain may depend on another domain's _abstraction_ (its contracts), but never on its _implementation_ (`core`/`ui`/`features`/`infrastructure`). The implementation stays hidden inside the domain and is provided across boundaries via dependency injection wired up in the composition root. Importing another domain's `core` fails the lint boundary check.
+
+### Usage
+
+```bash
+nx g @tactical-ddd/nx:domain payments --directory=libs/payments
+```
+
+`prefix`, `linter`, `unitTestRunner` and `preset` are inherited from the `nx.json` defaults written by [`init`](#init-generator), so in a bootstrapped workspace only the domain name (and directory) are needed. Example with explicit flags:
+
+```bash
+nx g @tactical-ddd/nx:domain payments \
+  --directory=libs/payments \
+  --prefix=@my-org \
+  --layers=contracts,core,features \
+  --preset=react \
+  --linter=eslint \
+  --unitTestRunner=jest \
+  --bundler=tsc
+```
+
+### Options
+
+| Option           | Type       | Default          | Required | Description                                                                                                 |
+| ---------------- | ---------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `name`           | `string`   | —                | Yes      | Domain name, also the `domain:<name>` tag. Passed as the first positional argument.                         |
+| `directory`      | `string`   | —                | Yes      | Root folder the domain libraries are generated into, e.g. `libs/payments`.                                  |
+| `layers`         | `string[]` | `contracts,core` | Yes      | Architectural layers to generate. Any of `contracts`, `core`, `ui`, `features`.                             |
+| `prefix`         | `string`   | —                | No       | Organization prefix used for the generated library names, e.g. `@my-org`.                                   |
+| `preset`         | `string`   | `none`           | No       | Framework preset for the `ui`/`features` layers. One of `none`, `react`.                                    |
+| `linter`         | `string`   | —                | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                   |
+| `unitTestRunner` | `string`   | —                | No       | Unit test runner to set up. One of `jest`, `vitest`, `none`. (`contracts` is always generated without one.) |
+| `bundler`        | `string`   | `tsc`            | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.              |
+
+> The generator is idempotent: it checks for each layer's library before creating it, so re-running it safely fills in only the layers that are missing.
+>
+> If `libs/shared/contracts` does not exist yet, the generator warns you to run [`init`](#init-generator) (or [`shared-kernel`](#shared-kernel-generator)) first, since domain libraries depend on the Shared Kernel.

@@ -47,8 +47,13 @@ Using the published generators in your own workspace:
 npm install -D @tactical-ddd/nx
 
 # Recommended: bootstrap the whole workspace in one step — generator defaults,
-# module-boundary lint rules, and the Shared Kernel (libs/shared/*).
+# module-boundary lint rules, and the Shared Kernel (libs/shared/*). Add
+# --preset=react to also install @tactical-ddd/react and the React tooling.
 nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=jest
+
+# Scaffold a bounded business domain (libs/payments/{contracts,core,...}).
+# Cross-domain imports are restricted to other domains' public contracts.
+nx g @tactical-ddd/nx:domain payments --directory=libs/payments
 
 # …or scaffold just the Shared Kernel on its own:
 nx g @tactical-ddd/nx:shared-kernel
