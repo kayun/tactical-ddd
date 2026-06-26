@@ -10,12 +10,9 @@
  */
 
 import { LibraryScope, LibraryType } from '../../types';
+import type { DepConstraint } from '../../utils/eslint-module-boundaries';
 
-/** A single `@nx/enforce-module-boundaries` dependency constraint. */
-export interface DepConstraint {
-  sourceTag: string;
-  onlyDependOnLibsWithTags: string[];
-}
+export type { DepConstraint };
 
 export const DEP_CONSTRAINTS: DepConstraint[] = [
   // ==========================================
@@ -36,9 +33,15 @@ export const DEP_CONSTRAINTS: DepConstraint[] = [
   // ==========================================
   // 2. CROSS-DOMAIN IMPORT PROTECTION
   // ==========================================
-  // The dynamic `domain:*` tag confines a library to its own domain: a
-  // `domain:auth` lib may only depend on other `domain:auth` libs (plus shared),
-  // never on `domain:payments`, even though both share `scope:domain`.
+  // Per-domain isolation cannot be expressed by a single static constraint:
+  // `@nx/enforce-module-boundaries` glob-matches the target tags too, so a
+  // `domain:*` → `domain:*` rule would let `domain:auth` import `domain:payments`.
+  // The actual silo is enforced by a per-domain constraint
+  // (`domain:<name>` → [`domain:<name>`, `scope:shared`]) that the `domain`
+  // generator injects for each domain it creates. This baseline entry only
+  // scopes any domain library to domains + shared (mirroring the `scope:domain`
+  // rule above); the injected per-domain constraints add the real restriction
+  // (Nx requires *every* matching constraint to permit a dependency).
   {
     sourceTag: LibraryScope.CrossDomain,
     onlyDependOnLibsWithTags: [LibraryScope.CrossDomain, LibraryScope.Shared],
