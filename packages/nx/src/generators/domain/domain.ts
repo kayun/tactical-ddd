@@ -1,6 +1,7 @@
 import {
   ensurePackage,
   formatFiles,
+  generateFiles,
   NX_VERSION,
   runTasksInSerial,
   type GeneratorCallback,
@@ -8,6 +9,7 @@ import {
   updateJson,
 } from '@nx/devkit';
 import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
+import { resolve } from 'path';
 
 import type { DomainGeneratorSchema } from './schema';
 import { libraryExists } from '../../utils/library-exist';
@@ -17,9 +19,6 @@ import {
 } from '../../utils/eslint-module-boundaries';
 import { warning } from '../../utils/logger';
 import { LibraryScope, LibraryType } from '../../types';
-
-/** Clean Architecture layers scaffolded inside a domain's `core` library. */
-const CORE_LAYERS = ['domain', 'application', 'infrastructure'] as const;
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -86,13 +85,12 @@ export async function domainGenerator(
     tree.delete(`${coreRoot}/src/lib/${options.name}-core.spec.ts`);
     tree.write(`${coreRoot}/src/index.ts`, '');
 
-    // Scaffold the Clean Architecture layers and lock down imports between them
-    // inside the core library: domain ⊀ application/infrastructure, and
+    // Scaffold the default Clean Architecture layer folders (domain,
+    // application, infrastructure — each kept in git via a `.gitkeep`) and lock
+    // down imports between them: domain ⊀ application/infrastructure, and
     // application ⊀ infrastructure (the implementation is wired via DI at the
     // composition root, not imported across layers).
-    for (const layer of CORE_LAYERS) {
-      tree.write(`${coreRoot}/src/lib/${layer}/index.ts`, '');
-    }
+    generateFiles(tree, resolve(__dirname, 'files/core'), coreRoot, {});
     applyCleanArchitectureBoundaries(tree, coreRoot, options.prefix);
   }
 

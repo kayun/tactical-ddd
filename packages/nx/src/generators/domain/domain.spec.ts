@@ -129,11 +129,13 @@ describe('domain generator', () => {
   });
 
   describe('core clean architecture layering', () => {
-    it('scaffolds the domain, application and infrastructure layer folders', async () => {
+    it('scaffolds the default domain, application and infrastructure folders', async () => {
       await domainGenerator(tree, baseOptions);
 
+      // Each Clean Architecture layer ships as a tracked, ready-to-use folder
+      // (a `.gitkeep` keeps the empty directory in version control).
       for (const layer of ['domain', 'application', 'infrastructure']) {
-        expect(tree.exists(`libs/orders/core/src/lib/${layer}/index.ts`)).toBe(
+        expect(tree.exists(`libs/orders/core/src/lib/${layer}/.gitkeep`)).toBe(
           true,
         );
       }

@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 
 import { createTestProject } from './test-utils';
@@ -187,6 +187,18 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
       expect(tags).toEqual(
         expect.arrayContaining(['scope:domain', 'domain:auth', 'type:core']),
       );
+    });
+
+    it('scaffolds the default clean-architecture folders in every core library', () => {
+      for (const domain of ['auth', 'payments', 'billing']) {
+        for (const layer of ['domain', 'application', 'infrastructure']) {
+          expect(
+            existsSync(
+              join(libRoot(domain, 'core'), 'src', 'lib', layer, '.gitkeep'),
+            ),
+          ).toBe(true);
+        }
+      }
     });
   });
 
