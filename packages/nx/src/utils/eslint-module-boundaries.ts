@@ -8,6 +8,8 @@ import {
 
 import type { Linter } from 'eslint';
 
+import { warning } from './logger';
+
 /** The module-boundaries rule whose `depConstraints` encode the dependency graph. */
 export const MODULE_BOUNDARIES_RULE = '@nx/enforce-module-boundaries';
 
@@ -59,7 +61,7 @@ export function applyDepConstraints(
   constraints: DepConstraint[],
 ): boolean {
   if (!isEslintConfigSupported(tree)) {
-    console.warn(
+    warning(
       'No supported ESLint config found at the workspace root — skipping module boundary rules.',
     );
     return false;

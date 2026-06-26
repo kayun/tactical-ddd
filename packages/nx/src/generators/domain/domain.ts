@@ -12,6 +12,7 @@ import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
 import type { DomainGeneratorSchema } from './schema';
 import { libraryExists } from '../../utils/library-exist';
 import { applyDepConstraints } from '../../utils/eslint-module-boundaries';
+import { warning } from '../../utils/logger';
 import { LibraryScope, LibraryType } from '../../types';
 
 /** Conventional location of the shared kernel's contracts library. */
@@ -26,8 +27,8 @@ export async function domainGenerator(
   // producing libraries whose boundary constraints reference tags nothing
   // carries.
   if (!libraryExists(tree, SHARED_CONTRACTS_ROOT)) {
-    console.warn(
-      `Shared kernel not found at ${SHARED_CONTRACTS_ROOT}. Run \`nx g @tactical-ddd/nx:shared-kernel\` (or the \`init\` generator) first so domain libraries can depend on the shared contracts.`,
+    warning(
+      `Shared kernel not found at ${SHARED_CONTRACTS_ROOT}. Run \`nx g @tactical-ddd/nx:init\` (or the \`shared-kernel\` generator) first so domain libraries can depend on the shared contracts.`,
     );
   }
 

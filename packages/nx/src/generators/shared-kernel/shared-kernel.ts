@@ -13,6 +13,7 @@ import type { SharedKernelGeneratorSchema } from './schema';
 import { LibraryScope, LibraryType, ModuleFormat } from '../../types';
 import { resolveLibraryModuleFormat } from '../../utils/resolve-module-format';
 import { libraryExists } from '../../utils/library-exist';
+import { info } from '../../utils/logger';
 
 export async function sharedKernelGenerator(
   tree: Tree,
@@ -33,7 +34,7 @@ export async function sharedKernelGenerator(
   const tasks: GeneratorCallback[] = [];
 
   if (!libraryExists(tree, contractsRoot)) {
-    console.log(`Creating contracts library at ${contractsRoot}...`);
+    info(`Creating contracts library at ${contractsRoot}...`);
 
     tasks.push(
       await libraryGenerator(tree, {
@@ -62,11 +63,11 @@ export async function sharedKernelGenerator(
       { overwriteStrategy: OverwriteStrategy.Overwrite },
     );
   } else {
-    console.log(`Contracts library already exists at ${contractsRoot}`);
+    info(`Contracts library already exists at ${contractsRoot}`);
   }
 
   if (!libraryExists(tree, utilsRoot)) {
-    console.log(`Creating utils library at ${utilsRoot}...`);
+    info(`Creating utils library at ${utilsRoot}...`);
 
     tasks.push(
       await libraryGenerator(tree, {
@@ -88,11 +89,11 @@ export async function sharedKernelGenerator(
     tree.delete(`${utilsRoot}/src/lib/shared-utils.spec.ts`);
     tree.write(`${utilsRoot}/src/index.ts`, '');
   } else {
-    console.log(`Utils library already exists at ${utilsRoot}`);
+    info(`Utils library already exists at ${utilsRoot}`);
   }
 
   if (!libraryExists(tree, infrastructureRoot)) {
-    console.log(`Creating infrastructure library at ${infrastructureRoot}...`);
+    info(`Creating infrastructure library at ${infrastructureRoot}...`);
 
     tasks.push(
       await libraryGenerator(tree, {
@@ -114,9 +115,7 @@ export async function sharedKernelGenerator(
     tree.delete(`${infrastructureRoot}/src/lib/shared-infrastructure.spec.ts`);
     tree.write(`${infrastructureRoot}/src/index.ts`, '');
   } else {
-    console.log(
-      `Infrastructure library already exists at ${infrastructureRoot}`,
-    );
+    info(`Infrastructure library already exists at ${infrastructureRoot}`);
   }
 
   await formatFiles(tree);
