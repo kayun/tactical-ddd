@@ -13,7 +13,7 @@
     "domain": {
       "factory": "./src/generators/domain/domain",
       "schema": "./src/generators/domain/schema.json",
-      "description": "domain"
+      "description": "Scaffold a bounded business domain (contracts/core/ui/features layers) with scope/type tags and per-domain cross-domain import isolation"
     }
   }
 }
