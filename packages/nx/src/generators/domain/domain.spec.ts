@@ -128,6 +128,30 @@ describe('domain generator', () => {
     });
   });
 
+  describe('core clean architecture layering', () => {
+    it('scaffolds the domain, application and infrastructure layer folders', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      for (const layer of ['domain', 'application', 'infrastructure']) {
+        expect(tree.exists(`libs/orders/core/src/lib/${layer}/index.ts`)).toBe(
+          true,
+        );
+      }
+    });
+
+    it('restricts cross-layer imports in the core library ESLint config', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const config =
+        tree.read('libs/orders/core/eslint.config.mjs', 'utf-8') ?? '';
+
+      expect(config).toContain('no-restricted-imports');
+      expect(config).toContain('src/lib/domain/**/*.ts');
+      expect(config).toContain('src/lib/application/**/*.ts');
+      expect(config).toContain('Clean Architecture violation');
+    });
+  });
+
   describe('implicit shared-kernel check', () => {
     it('warns when the shared kernel is missing', async () => {
       tree.delete('libs/shared/contracts/package.json');

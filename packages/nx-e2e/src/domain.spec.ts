@@ -86,11 +86,13 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
   beforeAll(() => {
     projectDirectory = createTestProject('test-project-domain');
 
-    // Establish the shared kernel + root module-boundary constraints, then two
-    // isolated business domains.
+    // Establish the shared kernel + root module-boundary constraints, then the
+    // business domains: auth/payments exercise cross-domain isolation, billing
+    // exercises the Clean Architecture layering inside a single core library.
     runInit();
     runDomain('auth');
     runDomain('payments');
+    runDomain('billing');
 
     // Set up two cross-domain edges to exercise the published-language rule:
     //
@@ -135,6 +137,29 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
     writeFileSync(
       implImport,
       `import { authImpl } from '${PREFIX}/auth-core';\n\nexport const usesAuthImpl = authImpl;\n`,
+    );
+
+    // Clean Architecture layering inside billing/core. The generator scaffolds
+    // src/lib/{domain,application,infrastructure}; populate them with:
+    //  - a clean domain entity,
+    //  - an ALLOWED inward dependency (application → domain),
+    //  - infrastructure, plus
+    //  - a FORBIDDEN outward dependency (domain → infrastructure).
+    const coreLib = (...segments: string[]) =>
+      join(libRoot('billing', 'core'), 'src', 'lib', ...segments);
+
+    writeFileSync(coreLib('domain', 'order.ts'), 'export class Order {}\n');
+    writeFileSync(
+      coreLib('application', 'create-order.ts'),
+      "import { Order } from '../domain/order';\n\nexport const createOrder = () => new Order();\n",
+    );
+    writeFileSync(
+      coreLib('infrastructure', 'db.ts'),
+      'export const db = {};\n',
+    );
+    writeFileSync(
+      coreLib('domain', 'leaky.ts'),
+      "import { db } from '../infrastructure/db';\n\nexport const leaked = db;\n",
     );
   });
 
@@ -187,6 +212,24 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
 
       expect(output).toContain('@nx/enforce-module-boundaries');
       expect(output).toContain('domain:payments');
+    });
+  });
+
+  describe('clean architecture layering (within core)', () => {
+    it('blocks the domain layer from importing the infrastructure layer', () => {
+      // billing/core/src/lib/domain/leaky.ts reaches into ../infrastructure.
+      const output = lintOutput(`${PREFIX}/billing-core`);
+
+      expect(output).toContain('no-restricted-imports');
+      expect(output).toContain('Domain layer must be independent');
+    });
+
+    it('permits the inward application → domain dependency', () => {
+      // The same lint run sees application/create-order.ts importing ../domain;
+      // that direction is allowed, so it raises no application-layer violation.
+      const output = lintOutput(`${PREFIX}/billing-core`);
+
+      expect(output).not.toContain('Application layer cannot import');
     });
   });
 });

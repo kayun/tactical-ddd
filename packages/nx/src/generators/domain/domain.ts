@@ -11,9 +11,15 @@ import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
 
 import type { DomainGeneratorSchema } from './schema';
 import { libraryExists } from '../../utils/library-exist';
-import { applyDepConstraints } from '../../utils/eslint-module-boundaries';
+import {
+  applyCleanArchitectureBoundaries,
+  applyDepConstraints,
+} from '../../utils/eslint-module-boundaries';
 import { warning } from '../../utils/logger';
 import { LibraryScope, LibraryType } from '../../types';
+
+/** Clean Architecture layers scaffolded inside a domain's `core` library. */
+const CORE_LAYERS = ['domain', 'application', 'infrastructure'] as const;
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -79,6 +85,15 @@ export async function domainGenerator(
     tree.delete(`${coreRoot}/src/lib/${options.name}-core.ts`);
     tree.delete(`${coreRoot}/src/lib/${options.name}-core.spec.ts`);
     tree.write(`${coreRoot}/src/index.ts`, '');
+
+    // Scaffold the Clean Architecture layers and lock down imports between them
+    // inside the core library: domain ⊀ application/infrastructure, and
+    // application ⊀ infrastructure (the implementation is wired via DI at the
+    // composition root, not imported across layers).
+    for (const layer of CORE_LAYERS) {
+      tree.write(`${coreRoot}/src/lib/${layer}/index.ts`, '');
+    }
+    applyCleanArchitectureBoundaries(tree, coreRoot, options.prefix);
   }
 
   if (!libraryExists(tree, uiRoot) && options.layers.includes('ui')) {

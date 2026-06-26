@@ -2,6 +2,7 @@ import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { Tree, readJson, writeJson } from '@nx/devkit';
 
 import {
+  applyCleanArchitectureBoundaries,
   applyDepConstraints,
   MODULE_BOUNDARIES_RULE,
   type DepConstraint,
@@ -150,5 +151,74 @@ describe('applyDepConstraints', () => {
       expect(config).toContain('enforceBuildableLibDependency');
       expect(config).toContain('scope:shared');
     });
+  });
+});
+
+describe('applyCleanArchitectureBoundaries', () => {
+  let tree: Tree;
+  const originalFlatConfig = process.env.ESLINT_USE_FLAT_CONFIG;
+  const LIB = 'libs/payments/core';
+
+  beforeEach(() => {
+    tree = createTreeWithEmptyWorkspace();
+    process.env.ESLINT_USE_FLAT_CONFIG = 'true';
+    tree.write(
+      `${LIB}/eslint.config.mjs`,
+      "import baseConfig from '../../../eslint.config.mjs';\n\nexport default [...baseConfig];\n",
+    );
+  });
+
+  afterEach(() => {
+    if (originalFlatConfig === undefined) {
+      delete process.env.ESLINT_USE_FLAT_CONFIG;
+    } else {
+      process.env.ESLINT_USE_FLAT_CONFIG = originalFlatConfig;
+    }
+  });
+
+  const readConfig = (): string =>
+    tree.read(`${LIB}/eslint.config.mjs`, 'utf-8') ?? '';
+
+  it('returns false when the library has no ESLint config', () => {
+    expect(
+      applyCleanArchitectureBoundaries(tree, 'libs/other/core', '@my-org'),
+    ).toBe(false);
+  });
+
+  it('restricts the domain layer from importing application or infrastructure', () => {
+    expect(applyCleanArchitectureBoundaries(tree, LIB, '@my-org')).toBe(true);
+
+    const config = readConfig();
+    expect(config).toContain('src/lib/domain/**/*.ts');
+    expect(config).toContain('no-restricted-imports');
+    expect(config).toContain('../application');
+    expect(config).toContain('../infrastructure');
+    expect(config).toContain('Domain layer must be independent');
+  });
+
+  it('restricts the application layer from importing infrastructure', () => {
+    applyCleanArchitectureBoundaries(tree, LIB, '@my-org');
+
+    const config = readConfig();
+    expect(config).toContain('src/lib/application/**/*.ts');
+    expect(config).toContain(
+      'Application layer cannot import from Infrastructure',
+    );
+  });
+
+  it('adds absolute-path guards scoped to the organization prefix', () => {
+    applyCleanArchitectureBoundaries(tree, LIB, '@my-org');
+
+    expect(readConfig()).toContain('@my-org/*/core/infrastructure/*');
+  });
+
+  it('omits the absolute-path guards when no prefix is given', () => {
+    applyCleanArchitectureBoundaries(tree, LIB);
+
+    const config = readConfig();
+    // Relative-path rules still apply…
+    expect(config).toContain('../infrastructure');
+    // …but there is no absolute alias rule to anchor on.
+    expect(config).not.toContain('/core/infrastructure/*');
   });
 });

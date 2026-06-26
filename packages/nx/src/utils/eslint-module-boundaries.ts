@@ -19,6 +19,12 @@ export interface DepConstraint {
   onlyDependOnLibsWithTags: string[];
 }
 
+/** A single `no-restricted-imports` pattern group with its violation message. */
+interface RestrictedImportPattern {
+  group: string[];
+  message: string;
+}
+
 /**
  * Baseline options every `@nx/enforce-module-boundaries` rule we write carries.
  * The `allow` glob keeps libraries free to import the workspace's flat ESLint
@@ -121,5 +127,104 @@ export function applyDepConstraints(
       };
     },
   );
+  return true;
+}
+
+/**
+ * The `no-restricted-imports` patterns enforcing Clean Architecture layering
+ * *inside* a domain's `core` library: `domain` may not reach into `application`
+ * or `infrastructure`, and `application` may not reach into `infrastructure`.
+ *
+ * Each layer gets a relative-path rule (sibling folders under `src/lib`) and,
+ * when an organization `prefix` is known, an absolute-path rule that closes the
+ * loophole of bypassing the relative rule through a workspace alias.
+ */
+function domainLayerPatterns(prefix?: string): RestrictedImportPattern[] {
+  const patterns: RestrictedImportPattern[] = [
+    {
+      group: [
+        '../application/*',
+        '../application',
+        '../infrastructure/*',
+        '../infrastructure',
+      ],
+      message:
+        'Clean Architecture violation: Domain layer must be independent and cannot import from Application or Infrastructure layers.',
+    },
+  ];
+
+  if (prefix) {
+    patterns.push({
+      group: [
+        `${prefix}/*/core/infrastructure/*`,
+        `${prefix}/*/core/application/*`,
+      ],
+      message:
+        'Clean Architecture violation: Domain layer cannot import upper layers via absolute paths.',
+    });
+  }
+
+  return patterns;
+}
+
+function applicationLayerPatterns(prefix?: string): RestrictedImportPattern[] {
+  const patterns: RestrictedImportPattern[] = [
+    {
+      group: ['../infrastructure/*', '../infrastructure'],
+      message:
+        'Clean Architecture violation: Application layer cannot import from Infrastructure layer.',
+    },
+  ];
+
+  if (prefix) {
+    patterns.push({
+      group: [`${prefix}/*/core/infrastructure/*`],
+      message:
+        'Clean Architecture violation: Application layer cannot import Infrastructure via absolute paths.',
+    });
+  }
+
+  return patterns;
+}
+
+/**
+ * Adds Clean Architecture import boundaries to a `core` library's own ESLint
+ * config (`<libraryRoot>/eslint.config.*`) via `no-restricted-imports` overrides
+ * scoped to the `domain` and `application` layer folders. `@nx/enforce-module-
+ * boundaries` guards dependencies *between* projects; these rules guard the
+ * layering *within* the core library.
+ *
+ * No-op (returning `false`) when the library has no ESLint config — e.g. it was
+ * generated with `linter: none`.
+ */
+export function applyCleanArchitectureBoundaries(
+  tree: Tree,
+  libraryRoot: string,
+  prefix?: string,
+): boolean {
+  if (!isEslintConfigSupported(tree, libraryRoot)) {
+    return false;
+  }
+
+  addOverrideToLintConfig(tree, libraryRoot, {
+    files: ['src/lib/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: domainLayerPatterns(prefix) },
+      ],
+    },
+  });
+
+  addOverrideToLintConfig(tree, libraryRoot, {
+    files: ['src/lib/application/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: applicationLayerPatterns(prefix) },
+      ],
+    },
+  });
+
   return true;
 }
