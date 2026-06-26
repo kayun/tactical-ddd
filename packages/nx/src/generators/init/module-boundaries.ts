@@ -37,11 +37,14 @@ export const DEP_CONSTRAINTS: DepConstraint[] = [
   // `@nx/enforce-module-boundaries` glob-matches the target tags too, so a
   // `domain:*` → `domain:*` rule would let `domain:auth` import `domain:payments`.
   // The actual silo is enforced by a per-domain constraint
-  // (`domain:<name>` → [`domain:<name>`, `scope:shared`]) that the `domain`
-  // generator injects for each domain it creates. This baseline entry only
-  // scopes any domain library to domains + shared (mirroring the `scope:domain`
-  // rule above); the injected per-domain constraints add the real restriction
-  // (Nx requires *every* matching constraint to permit a dependency).
+  // (`domain:<name>` → [`domain:<name>`, `scope:shared`, `type:contracts`]) that
+  // the `domain` generator injects for each domain it creates — confining a
+  // domain to itself, the shared kernel, and the *public contracts* of other
+  // domains (the published-language pattern), never their implementation. This
+  // baseline entry only scopes any domain library to domains + shared
+  // (mirroring the `scope:domain` rule above); the injected per-domain
+  // constraints add the real restriction (Nx requires *every* matching
+  // constraint to permit a dependency).
   {
     sourceTag: LibraryScope.CrossDomain,
     onlyDependOnLibsWithTags: [LibraryScope.CrossDomain, LibraryScope.Shared],

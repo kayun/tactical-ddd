@@ -114,13 +114,17 @@ describe('domain generator', () => {
   });
 
   describe('module boundaries', () => {
-    it('injects a per-domain constraint that silos the domain to itself + shared', async () => {
+    it('injects a per-domain constraint confining the domain to itself, shared and public contracts', async () => {
       await domainGenerator(tree, baseOptions);
 
       const config = tree.read(ESLINT_CONFIG, 'utf-8') ?? '';
 
+      // The base config starts with empty depConstraints, so these tags can only
+      // come from the per-domain constraint the generator injects.
       expect(config).toContain('domain:orders');
       expect(config).toContain('scope:shared');
+      // Published-language: a domain may import other domains' public contracts.
+      expect(config).toContain('type:contracts');
     });
   });
 

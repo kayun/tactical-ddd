@@ -99,12 +99,21 @@ export async function domainGenerator(
     // Silo this domain: per-domain constraints are what actually prevent
     // cross-domain imports (a static `domain:*` rule cannot — Nx glob-matches
     // the target tags, so it would let `domain:auth` import `domain:payments`).
-    // This confines `domain:<name>` libraries to their own domain plus the
-    // shared kernel. No-op (with a warning) when there is no ESLint config.
+    //
+    // A `domain:<name>` library may depend on its own domain, the shared
+    // kernel, and the *public contracts* of any other domain (`type:contracts`)
+    // — the published-language pattern: a domain depends on another domain's
+    // abstraction, never its implementation (`core`/`ui`/`features`/
+    // `infrastructure`), which stays hidden behind DI wired up in the
+    // composition root. No-op (with a warning) when there is no ESLint config.
     applyDepConstraints(tree, [
       {
         sourceTag: domainTag,
-        onlyDependOnLibsWithTags: [domainTag, LibraryScope.Shared],
+        onlyDependOnLibsWithTags: [
+          domainTag,
+          LibraryScope.Shared,
+          LibraryType.Contracts,
+        ],
       },
     ]);
   });

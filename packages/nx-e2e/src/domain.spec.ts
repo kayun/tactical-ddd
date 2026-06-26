@@ -92,24 +92,49 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
     runDomain('auth');
     runDomain('payments');
 
-    // Introduce an illegal cross-domain import: auth/core reaches into
-    // payments/core. Both are `scope:domain` (so the scope rule alone permits
-    // it) — only the per-domain `domain:auth` constraint should reject it.
+    // Set up two cross-domain edges to exercise the published-language rule:
+    //
+    //  1. ALLOWED — auth/core depends on payments' public *contract* (an
+    //     abstraction). Domains may depend on each other's `type:contracts`.
+    //  2. BLOCKED — payments/core depends on auth/core, another domain's
+    //     *implementation*. This must be rejected by the boundary rule.
+    writeFileSync(
+      join(libRoot('payments', 'contracts'), 'src', 'index.ts'),
+      "export const PAYMENTS_PORT = 'PAYMENTS_PORT';\n",
+    );
     writeFileSync(
       join(libRoot('payments', 'core'), 'src', 'index.ts'),
-      'export const paymentsValue = 42;\n',
+      'export const paymentsImpl = 1;\n',
+    );
+    writeFileSync(
+      join(libRoot('auth', 'core'), 'src', 'index.ts'),
+      'export const authImpl = 2;\n',
     );
 
-    const crossDomainFile = join(
+    // (1) ALLOWED: auth/core imports payments' contract.
+    const contractImport = join(
       libRoot('auth', 'core'),
       'src',
       'lib',
-      'uses-payments.ts',
+      'uses-payment-contract.ts',
     );
-    mkdirSync(dirname(crossDomainFile), { recursive: true });
+    mkdirSync(dirname(contractImport), { recursive: true });
     writeFileSync(
-      crossDomainFile,
-      `import { paymentsValue } from '${PREFIX}/payments-core';\n\nexport const usesPayments = paymentsValue;\n`,
+      contractImport,
+      `import { PAYMENTS_PORT } from '${PREFIX}/payments-contracts';\n\nexport const usesPaymentsPort = PAYMENTS_PORT;\n`,
+    );
+
+    // (2) BLOCKED: payments/core imports auth's implementation.
+    const implImport = join(
+      libRoot('payments', 'core'),
+      'src',
+      'lib',
+      'uses-auth-impl.ts',
+    );
+    mkdirSync(dirname(implImport), { recursive: true });
+    writeFileSync(
+      implImport,
+      `import { authImpl } from '${PREFIX}/auth-core';\n\nexport const usesAuthImpl = authImpl;\n`,
     );
   });
 
@@ -140,7 +165,7 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
     });
   });
 
-  describe('cross-domain isolation', () => {
+  describe('cross-domain isolation (published-language)', () => {
     it('records a per-domain constraint for every generated domain', () => {
       const config = readEslintConfig();
 
@@ -148,13 +173,20 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
       expect(config).toContain('domain:payments');
     });
 
-    it('fails lint when one domain imports another', () => {
+    it('allows a domain to import another domain’s public contracts', () => {
+      // auth/core depends on payments/contracts (an abstraction) — permitted.
       const output = lintOutput(`${PREFIX}/auth-core`);
 
-      // The module-boundary rule must be what rejects the import — not merely
-      // that lint happened to fail for some unrelated reason.
+      expect(output).not.toContain('@nx/enforce-module-boundaries');
+    });
+
+    it('blocks a domain from importing another domain’s implementation', () => {
+      // payments/core depends on auth/core (an implementation) — rejected by the
+      // per-domain constraint, not by some unrelated lint failure.
+      const output = lintOutput(`${PREFIX}/payments-core`);
+
       expect(output).toContain('@nx/enforce-module-boundaries');
-      expect(output).toContain('domain:auth');
+      expect(output).toContain('domain:payments');
     });
   });
 });
