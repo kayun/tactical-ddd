@@ -34,5 +34,5 @@
       "description": "Which bundler to use?"
     }
   },
-  "required": ["directory", "linter", "unitTestRunner"]
+  "required": ["directory", "linter", "unitTestRunner", "prefix"]
 }

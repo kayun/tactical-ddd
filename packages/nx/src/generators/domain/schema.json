@@ -69,5 +69,5 @@
       "description": "Which bundler to use? Defaults to 'tsc' per the Tactical DDD standard (all generated libraries are tsc-built)."
     }
   },
-  "required": ["name", "directory", "layers", "linter"]
+  "required": ["name", "directory", "layers", "linter", "prefix"]
 }
