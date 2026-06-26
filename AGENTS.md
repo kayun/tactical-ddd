@@ -57,9 +57,9 @@ The global, foundational layer. It contains no business logic. It must be genera
   - _Purpose_: Global TypeScript interfaces, DTOs, types, and API response shapes.
   - _Tags_: `scope:shared`, `type:contracts`
   - _Dependencies_: Cannot import anything.
-- **`libs/shared/api-client`**
+- **`libs/shared/infrastructure`**
   - _Purpose_: Global HTTP/WS clients, fetch/axios wrappers, and core query configurations (e.g., `@tanstack/query-core`).
-  - _Tags_: `scope:shared`, `type:api-client`
+  - _Tags_: `scope:shared`, `type:infrastructure`
   - _Dependencies_: Can only import from `libs/shared/contracts`.
 - **`libs/shared/utils`**
   - _Purpose_: Pure, framework-agnostic helper functions (date formatters, string manipulators, math helpers).
