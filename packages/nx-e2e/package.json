@@ -17,6 +17,13 @@
         "dependsOn": [
           "^build"
         ],
+        "inputs": [
+          "default",
+          "^default",
+          {
+            "env": "E2E_NX_VERSION"
+          }
+        ],
         "options": {
           "jestConfig": "packages/nx-e2e/jest.config.js",
           "runInBand": true

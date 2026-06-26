@@ -9,14 +9,18 @@ import { createTestProject } from './test-utils';
 jest.setTimeout(600_000);
 
 describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
+  const PREFIX = '@e2e-org';
   const SHARED_DIR = 'libs/shared';
   const LAYERS = ['contracts', 'utils', 'infrastructure'] as const;
 
   let projectDirectory: string;
 
+  // `prefix` is a required option, so it is always passed. It only affects the
+  // generated package names (e.g. `@e2e-org/shared-contracts`); the libraries
+  // still live under `libs/shared/<layer>`, which is what the assertions read.
   const runGenerator = () =>
     execSync(
-      'npx nx g @tactical-ddd/nx:shared-kernel --directory=libs/shared --linter=eslint --unitTestRunner=jest --no-interactive',
+      `npx nx g @tactical-ddd/nx:shared-kernel --directory=libs/shared --prefix=${PREFIX} --linter=eslint --unitTestRunner=jest --no-interactive`,
       { cwd: projectDirectory, stdio: 'inherit', env: process.env },
     );
 

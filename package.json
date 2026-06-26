@@ -11,6 +11,9 @@
     "nx": "nx",
     "test": "nx affected -t test --max-parallel 3 --passWithNoTests --exclude=@tactical-ddd/nx-e2e",
     "generators:e2e": "nx run @tactical-ddd/nx-e2e:e2e",
+    "generators:e2e:nx22": "E2E_NX_VERSION=22 nx run @tactical-ddd/nx-e2e:e2e",
+    "generators:e2e:nx23": "E2E_NX_VERSION=23 nx run @tactical-ddd/nx-e2e:e2e",
+    "generators:e2e:all": "npm run generators:e2e:nx22 && npm run generators:e2e:nx23",
     "lint:fix": "nx affected  -t lint --max-parallel 3 --fix",
     "format:fix": "nx format:write",
     "prepare": "husky"
