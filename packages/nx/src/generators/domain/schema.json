@@ -6,13 +6,68 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "",
+      "description": "Domain ",
       "$default": {
         "$source": "argv",
         "index": 0
       },
       "x-prompt": "What name would you like to use?"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Root folder for domain libraries",
+      "x-prompt": "Which directory should the domain be generated into?"
+    },
+    "prefix": {
+      "type": "string",
+      "description": "Organization prefix for the generated libraries, e.g. '@my-org'",
+      "x-prompt": "Which organization prefix should be used (e.g. @my-org)?"
+    },
+    "layers": {
+      "type": "array",
+      "description": "Select the architectural layers to generate for this domain",
+      "items": {
+        "type": "string",
+        "enum": ["contracts", "core", "ui", "features"]
+      },
+      "default": ["contracts", "core"],
+      "x-prompt": "Select the architectural layers to generate for this domain"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["none", "react"],
+      "default": "none",
+      "description": "Framework preset. 'react' also installs @tactical-ddd/react, the React runtime and React generator defaults.",
+      "x-prompt": {
+        "message": "Which framework preset should be configured?",
+        "type": "list",
+        "items": [
+          { "value": "none", "label": "None (framework-agnostic)" },
+          {
+            "value": "react",
+            "label": "React (@tactical-ddd/react + React tooling)"
+          }
+        ]
+      }
+    },
+    "linter": {
+      "type": "string",
+      "enum": ["eslint", "none"],
+      "description": "Which linter to use?",
+      "x-prompt": "Which linter should be configured?"
+    },
+    "unitTestRunner": {
+      "type": "string",
+      "enum": ["jest", "vitest", "none"],
+      "description": "Which test runner to use?",
+      "x-prompt": "Which unit test runner should be used?"
+    },
+    "bundler": {
+      "type": "string",
+      "enum": ["none", "swc", "tsc", "rollup", "vite", "esbuild"],
+      "default": "tsc",
+      "description": "Which bundler to use? Defaults to 'tsc' per the Tactical DDD standard (all generated libraries are tsc-built)."
     }
   },
-  "required": ["name"]
+  "required": ["name", "directory", "layers", "linter"]
 }
