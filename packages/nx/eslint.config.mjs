@@ -32,7 +32,10 @@ export default [
     },
   },
   {
-    ignores: ['**/out-tsc'],
+    // `src/**/files/**` holds EJS generator templates, not real source — their
+    // `<%= %>` placeholders are not valid TS/JS, so they are excluded from
+    // linting (mirroring the `tsconfig.lib.json` exclude).
+    ignores: ['**/out-tsc', 'src/**/files/**'],
   },
   {
     files: ['**/package.json', '**/generators.json'],

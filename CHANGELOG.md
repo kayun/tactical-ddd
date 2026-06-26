@@ -1,3 +1,29 @@
+## 0.0.2-alpha.1 (2026-06-26)
+
+### 🚀 Features
+
+- **domain:** add e2e tests and layer generation for `domain` generator ([70716f8](https://github.com/kayun/tactical-ddd/commit/70716f8))
+- **domain:** enforce published-language pattern for cross-domain imports ([2ed1933](https://github.com/kayun/tactical-ddd/commit/2ed1933))
+- **domain:** enforce Clean Architecture layering and enhance domain generator ([8397032](https://github.com/kayun/tactical-ddd/commit/8397032))
+- **domain:** add scaffolding for Clean Architecture default folders with `.gitkeep` ([26f4ad6](https://github.com/kayun/tactical-ddd/commit/26f4ad6))
+- **domain:** add facade scaffolding and lint validations for generated libraries ([b0cdf29](https://github.com/kayun/tactical-ddd/commit/b0cdf29))
+- **eslint:** add utilities for managing module boundaries in ESLint configs ([0c88efc](https://github.com/kayun/tactical-ddd/commit/0c88efc))
+- **eslint:** add `@nx/react` to ignoredDependencies in module boundary rule ([01a0f16](https://github.com/kayun/tactical-ddd/commit/01a0f16))
+- **logger:** introduce logger utility with tagged, colorized output ([02e31f8](https://github.com/kayun/tactical-ddd/commit/02e31f8))
+- **nx:** add `init` generator for initializing new Nx workspace configurations ([cf97a10](https://github.com/kayun/tactical-ddd/commit/cf97a10))
+- **nx:** enhance `init` generator to configure organization-wide defaults ([7c03774](https://github.com/kayun/tactical-ddd/commit/7c03774))
+- **nx:** enforce Tactical DDD architecture via module boundaries in `init` generator ([6515f5a](https://github.com/kayun/tactical-ddd/commit/6515f5a))
+- **nx:** extend `init` generator with shared kernel setup and configurable options ([a6892ee](https://github.com/kayun/tactical-ddd/commit/a6892ee))
+- **nx:** propagate and persist default configs to built-in library generators ([4dc486d](https://github.com/kayun/tactical-ddd/commit/4dc486d))
+- **nx:** ensure dependency installation in `init` generator ([f87be4d](https://github.com/kayun/tactical-ddd/commit/f87be4d))
+- **nx:** add React preset support in `init` generator ([3e631cc](https://github.com/kayun/tactical-ddd/commit/3e631cc))
+- **nx:** handle empty directories during shared kernel scaffolding ([028d81b](https://github.com/kayun/tactical-ddd/commit/028d81b))
+- **nx:** add `domain` generator for Tactical DDD library scaffolding ([dd1f5c4](https://github.com/kayun/tactical-ddd/commit/dd1f5c4))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.0.2-alpha.0 (2026-06-23)
 
 ### 🚀 Features
