@@ -5,7 +5,15 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: ['**/dist', '**/build', '**/vite.config.*.timestamp*'],
+    ignores: [
+      '**/dist',
+      '**/build',
+      '**/vite.config.*.timestamp*',
+      // `**/src/generators/**/files` holds EJS generator templates, not real source — their
+      // `<%= %>` placeholders are not valid TS/JS, so they are excluded from
+      // linting (mirroring the `tsconfig.lib.json` exclude).
+      '**/src/generators/**/files',
+    ],
   },
   {
     files: ['**/*.ts', '**/*.js'],

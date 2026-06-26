@@ -1,5 +1,5 @@
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Tree, readProjectConfiguration } from '@nx/devkit';
+import { Tree, readJson, readProjectConfiguration } from '@nx/devkit';
 
 import { domainGenerator } from './domain';
 import { DomainGeneratorSchema } from './schema';
@@ -132,13 +132,15 @@ describe('domain generator', () => {
     it('scaffolds the default domain, application and infrastructure folders', async () => {
       await domainGenerator(tree, baseOptions);
 
-      // Each Clean Architecture layer ships as a tracked, ready-to-use folder
-      // (a `.gitkeep` keeps the empty directory in version control).
-      for (const layer of ['domain', 'application', 'infrastructure']) {
-        expect(tree.exists(`libs/orders/core/src/lib/${layer}/.gitkeep`)).toBe(
-          true,
-        );
-      }
+      // The empty layers are kept in version control with a `.gitkeep`; the
+      // application layer instead ships the generated facade (asserted below).
+      expect(tree.exists('libs/orders/core/src/lib/domain/.gitkeep')).toBe(
+        true,
+      );
+      expect(
+        tree.exists('libs/orders/core/src/lib/infrastructure/.gitkeep'),
+      ).toBe(true);
+      expect(tree.exists('libs/orders/core/src/lib/application')).toBe(true);
     });
 
     it('restricts cross-layer imports in the core library ESLint config', async () => {
@@ -151,6 +153,80 @@ describe('domain generator', () => {
       expect(config).toContain('src/lib/domain/**/*.ts');
       expect(config).toContain('src/lib/application/**/*.ts');
       expect(config).toContain('Clean Architecture violation');
+    });
+  });
+
+  describe('facade scaffolding', () => {
+    // `names('<domain>Facade').className` — e.g. orders → OrdersFacade.
+    const FACADE = 'OrdersFacade';
+
+    it('generates the facade interface (with a DI token) in the contracts library', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const iface = tree.read(
+        'libs/orders/contracts/src/lib/interfaces/orders-facade.interface.ts',
+        'utf-8',
+      );
+
+      expect(iface).toContain(`export interface ${FACADE}`);
+      // The paired const carries a Symbol DI token for the interface.
+      expect(iface).toContain(`Symbol.for('${FACADE}')`);
+    });
+
+    it('barrel-exports the facade interface from the contracts library', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const barrel =
+        tree.read('libs/orders/contracts/src/index.ts', 'utf-8') ?? '';
+
+      expect(barrel).toContain('orders-facade.interface');
+    });
+
+    it('generates a facade implementation in the core application layer', async () => {
+      await domainGenerator(tree, { ...baseOptions, prefix: '@my-org' });
+
+      const facade = tree.read(
+        'libs/orders/core/src/lib/application/orders.facade.ts',
+        'utf-8',
+      );
+
+      expect(facade).toContain(
+        `export class Core${FACADE} implements ${FACADE}`,
+      );
+      // It depends on the contract abstraction, imported by package name.
+      expect(facade).toContain(`from '@my-org/orders-contracts'`);
+    });
+
+    it('imports the contracts package by its unscoped name when no prefix is given', async () => {
+      await domainGenerator(tree, baseOptions); // baseOptions has no prefix
+
+      const facade =
+        tree.read(
+          'libs/orders/core/src/lib/application/orders.facade.ts',
+          'utf-8',
+        ) ?? '';
+
+      expect(facade).toContain(`from 'orders-contracts'`);
+      expect(facade).not.toContain('undefined');
+    });
+
+    it('declares the contracts package as a dependency of the core library', async () => {
+      // The facade imports the contracts package, so it must be a declared
+      // dependency or `@nx/dependency-checks` fails when the core lib is linted.
+      await domainGenerator(tree, { ...baseOptions, prefix: '@my-org' });
+
+      const dependencies =
+        readJson(tree, 'libs/orders/core/package.json').dependencies ?? {};
+
+      expect(dependencies).toHaveProperty('@my-org/orders-contracts');
+    });
+
+    it('barrel-exports the facade implementation from the core library', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const barrel = tree.read('libs/orders/core/src/index.ts', 'utf-8') ?? '';
+
+      expect(barrel).toContain('orders.facade');
     });
   });
 

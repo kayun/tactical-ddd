@@ -93,6 +93,9 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
     runDomain('auth');
     runDomain('payments');
     runDomain('billing');
+    // `catalog` is left exactly as generated (no test files written into it) so
+    // its libraries can be linted in their default, out-of-the-box state.
+    runDomain('catalog');
 
     // Set up two cross-domain edges to exercise the published-language rule:
     //
@@ -189,15 +192,50 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
       );
     });
 
-    it('scaffolds the default clean-architecture folders in every core library', () => {
+    it('scaffolds the default clean-architecture layers in every core library', () => {
       for (const domain of ['auth', 'payments', 'billing']) {
-        for (const layer of ['domain', 'application', 'infrastructure']) {
-          expect(
-            existsSync(
-              join(libRoot(domain, 'core'), 'src', 'lib', layer, '.gitkeep'),
-            ),
-          ).toBe(true);
-        }
+        const coreLib = (...segments: string[]) =>
+          join(libRoot(domain, 'core'), 'src', 'lib', ...segments);
+
+        // Empty layers are kept in git with a `.gitkeep`; the application layer
+        // instead ships the generated facade implementation.
+        expect(existsSync(coreLib('domain', '.gitkeep'))).toBe(true);
+        expect(existsSync(coreLib('infrastructure', '.gitkeep'))).toBe(true);
+        expect(existsSync(coreLib('application', `${domain}.facade.ts`))).toBe(
+          true,
+        );
+      }
+    });
+
+    it('generates the facade interface and implementation for each domain', () => {
+      for (const domain of ['auth', 'payments', 'billing']) {
+        // `names('<domain>Facade').className`, e.g. auth → AuthFacade.
+        const facade = `${domain[0].toUpperCase()}${domain.slice(1)}Facade`;
+
+        const iface = readFileSync(
+          join(
+            libRoot(domain, 'contracts'),
+            'src',
+            'lib',
+            'interfaces',
+            `${domain}-facade.interface.ts`,
+          ),
+          'utf-8',
+        );
+        expect(iface).toContain(`export interface ${facade}`);
+
+        const impl = readFileSync(
+          join(
+            libRoot(domain, 'core'),
+            'src',
+            'lib',
+            'application',
+            `${domain}.facade.ts`,
+          ),
+          'utf-8',
+        );
+        expect(impl).toContain(`class Core${facade} implements ${facade}`);
+        expect(impl).toContain(`${PREFIX}/${domain}-contracts`);
       }
     });
   });
@@ -224,6 +262,21 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
 
       expect(output).toContain('@nx/enforce-module-boundaries');
       expect(output).toContain('domain:payments');
+    });
+  });
+
+  describe('default lint cleanliness', () => {
+    it('lints the generated contracts library with no errors', () => {
+      // `catalog` is generated and left untouched, so a clean lint proves the
+      // scaffolded facade interface is valid out of the box.
+      expect(lintOutput(`${PREFIX}/catalog-contracts`)).toBe('');
+    });
+
+    it('lints the generated core library with no errors', () => {
+      // The generated facade imports its own domain's contracts — an allowed
+      // dependency — and sits in the application layer, breaking no
+      // clean-architecture or module-boundary rule.
+      expect(lintOutput(`${PREFIX}/catalog-core`)).toBe('');
     });
   });
 

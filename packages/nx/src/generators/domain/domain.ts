@@ -2,7 +2,10 @@ import {
   ensurePackage,
   formatFiles,
   generateFiles,
+  names,
   NX_VERSION,
+  OverwriteStrategy,
+  readJson,
   runTasksInSerial,
   type GeneratorCallback,
   type Tree,
@@ -18,7 +21,8 @@ import {
   applyDepConstraints,
 } from '../../utils/eslint-module-boundaries';
 import { warning } from '../../utils/logger';
-import { LibraryScope, LibraryType } from '../../types';
+import { LibraryScope, LibraryType, ModuleFormat } from '../../types';
+import { resolveLibraryModuleFormat } from '../../utils/resolve-module-format';
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -42,6 +46,7 @@ export async function domainGenerator(
   const uiRoot = `${options.directory}/ui`;
   const featuresRoot = `${options.directory}/features`;
   const domainTag = `domain:${options.name}`;
+  const facadeDomainInterfaceVariants = names(`${options.name}Facade`);
 
   // Install callbacks from the delegated library generators — returned to Nx so
   // the packages backing the inferred plugins (`@nx/eslint`, `@nx/jest`) the
@@ -64,8 +69,22 @@ export async function domainGenerator(
         tags: `${LibraryScope.Domain},${domainTag},${LibraryType.Contracts}`,
       }),
     );
+
+    const type = resolveLibraryModuleFormat(tree, contractsRoot);
+
     tree.delete(`${contractsRoot}/src/lib/${options.name}-contracts.ts`);
     tree.write(`${contractsRoot}/src/index.ts`, '');
+    generateFiles(
+      tree,
+      resolve(__dirname, 'files/contracts'),
+      contractsRoot,
+      {
+        name: options.name,
+        interfaceName: facadeDomainInterfaceVariants.className,
+        esm: type === ModuleFormat.EsModule,
+      },
+      { overwriteStrategy: OverwriteStrategy.Overwrite },
+    );
   }
 
   if (!libraryExists(tree, coreRoot) && options.layers.includes('core')) {
@@ -81,6 +100,10 @@ export async function domainGenerator(
         tags: `${LibraryScope.Domain},${domainTag},${LibraryType.Core}`,
       }),
     );
+
+    const type = resolveLibraryModuleFormat(tree, coreRoot);
+    const contractsPackage = layerName(options, 'contracts');
+
     tree.delete(`${coreRoot}/src/lib/${options.name}-core.ts`);
     tree.delete(`${coreRoot}/src/lib/${options.name}-core.spec.ts`);
     tree.write(`${coreRoot}/src/index.ts`, '');
@@ -90,7 +113,36 @@ export async function domainGenerator(
     // down imports between them: domain ⊀ application/infrastructure, and
     // application ⊀ infrastructure (the implementation is wired via DI at the
     // composition root, not imported across layers).
-    generateFiles(tree, resolve(__dirname, 'files/core'), coreRoot, {});
+    generateFiles(
+      tree,
+      resolve(__dirname, 'files/core'),
+      coreRoot,
+      {
+        name: options.name,
+        interfaceName: facadeDomainInterfaceVariants.className,
+        // Full package name of this domain's contracts library, so the facade's
+        // import resolves with or without an organization prefix.
+        contractsPackage,
+        esm: type === ModuleFormat.EsModule,
+      },
+      { overwriteStrategy: OverwriteStrategy.Overwrite },
+    );
+
+    // The generated facade imports the domain's contracts package, so declare it
+    // as a dependency — otherwise `@nx/dependency-checks` flags the core library
+    // for using a package missing from its `package.json`.
+    if (tree.exists(`${contractsRoot}/package.json`)) {
+      const contractsVersion =
+        readJson(tree, `${contractsRoot}/package.json`).version ?? '*';
+      updateJson(tree, `${coreRoot}/package.json`, (pkg) => {
+        pkg.dependencies = {
+          ...pkg.dependencies,
+          [contractsPackage]: contractsVersion,
+        };
+        return pkg;
+      });
+    }
+
     applyCleanArchitectureBoundaries(tree, coreRoot, options.prefix);
   }
 

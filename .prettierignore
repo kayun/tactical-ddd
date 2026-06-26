@@ -4,3 +4,7 @@
 /.nx/cache
 /.nx/workspace-data
 .nx/self-healing
+
+# Generator templates: EJS files (`<%= %>` placeholders) are not valid TS/JS,
+# so Prettier cannot parse them. Mirrors the eslint/tsconfig `files/` excludes.
+**/src/generators/**/files/
