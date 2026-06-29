@@ -1,3 +1,15 @@
+## 0.0.2-alpha.3 (2026-06-29)
+
+### 🚀 Features
+
+- **init:** enhance React preset handling and improve cleanup utility ([2842426](https://github.com/kayun/tactical-ddd/commit/2842426))
+- **shared-kernel:** add README templates and prefix support for generated libraries ([3fd0a7d](https://github.com/kayun/tactical-ddd/commit/3fd0a7d))
+- **test-utils/e2e:** add workspace type support for Nx strategies in test utilities and specs ([0672e42](https://github.com/kayun/tactical-ddd/commit/0672e42))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.0.2-alpha.2 (2026-06-26)
 
 ### 🚀 Features
