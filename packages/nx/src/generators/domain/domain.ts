@@ -1,4 +1,5 @@
 import {
+  addDependenciesToPackageJson,
   ensurePackage,
   formatFiles,
   generateFiles,
@@ -23,6 +24,7 @@ import {
 import { warning } from '../../utils/logger';
 import { LibraryScope, LibraryType, ModuleFormat } from '../../types';
 import { resolveLibraryModuleFormat } from '../../utils/resolve-module-format';
+import { reactRuntimeDependencies } from '../../utils/react-runtime';
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -167,6 +169,19 @@ export async function domainGenerator(
     );
   }
 
+  // A React layer (ui/features) needs the React runtime present. Add it
+  // centrally — both halves at one specifier, and only when the workspace
+  // manages neither yet — mirroring the `init` generator; `@nx/react` was told
+  // to skip it above so it can't introduce a skewed `react`/`react-dom`.
+  if (
+    options.preset === 'react' &&
+    (options.layers.includes('ui') || options.layers.includes('features'))
+  ) {
+    tasks.push(
+      addDependenciesToPackageJson(tree, reactRuntimeDependencies(tree), {}),
+    );
+  }
+
   // Silo this domain: per-domain constraints are what actually prevent
   // cross-domain imports (a static `domain:*` rule cannot — Nx glob-matches the
   // target tags, so it would let `domain:auth` import `domain:payments`).
@@ -220,6 +235,12 @@ async function generateLayerLibrary(
       typeof import('@nx/react')
     >('@nx/react', NX_VERSION);
 
+    // `skipPackageJson` stops `@nx/react` from adding `react`/`react-dom` to the
+    // workspace itself: it would add `react-dom` at a floating range that can
+    // resolve to a patch the workspace's already-pinned `react` no longer
+    // satisfies (an `ERESOLVE` on install). The React runtime is instead added
+    // centrally and skew-free via `reactRuntimeDependencies` in the main
+    // generator, only when the workspace manages none yet.
     return await reactLibraryGenerator(tree, {
       name: layer.name,
       directory: layer.root,
@@ -229,6 +250,7 @@ async function generateLayerLibrary(
       linter: options.linter,
       style: 'none',
       tags: layer.tags,
+      skipPackageJson: true,
     });
   }
 

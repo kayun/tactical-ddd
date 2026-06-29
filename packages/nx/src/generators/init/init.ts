@@ -2,7 +2,6 @@ import {
   addDependenciesToPackageJson,
   formatFiles,
   NX_VERSION,
-  readJson,
   readNxJson,
   runTasksInSerial,
   updateNxJson,
@@ -14,6 +13,7 @@ import {
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
 import { applyDepConstraints } from '../../utils/eslint-module-boundaries';
+import { reactRuntimeDependencies } from '../../utils/react-runtime';
 import sharedKernelGenerator from '../shared-kernel/shared-kernel';
 
 /**
@@ -40,16 +40,6 @@ const REACT_LIBRARY_GENERATORS = ['@nx/react:library'] as const;
 
 /** The Tactical DDD React runtime bindings package. */
 const TACTICAL_DDD_REACT = '@tactical-ddd/react';
-
-/**
- * React runtime version added to the *user's* workspace under the `react`
- * preset. `react` and `react-dom` are pinned to the *same* specifier and only
- * ever added together (see {@link ensureGeneratorDependencies}) so we never
- * introduce a `react` vs `react-dom` version skew of our own. Kept in step with
- * the React version `@nx/react`'s own generators install so the two never
- * disagree.
- */
-const REACT_VERSION = '^19.0.0';
 
 /**
  * Version specifier to install `@tactical-ddd/react` at. The React bindings are
@@ -161,33 +151,10 @@ function ensureGeneratorDependencies(
     // Only provide the React runtime when the workspace manages neither half of
     // it yet; if it already has `react` (or `react-dom`), defer to whatever
     // versions it pinned rather than re-resolving and risking a peer conflict.
-    if (!workspaceHasReactRuntime(tree)) {
-      dependencies['react'] = REACT_VERSION;
-      dependencies['react-dom'] = REACT_VERSION;
-    }
+    Object.assign(dependencies, reactRuntimeDependencies(tree));
   }
 
   return addDependenciesToPackageJson(tree, dependencies, devDependencies);
-}
-
-/**
- * Whether the workspace `package.json` already declares `react` or `react-dom`
- * (in either `dependencies` or `devDependencies`). When it does, `init` leaves
- * the React runtime untouched so it can't introduce a version skew or trigger a
- * conflicting re-resolve.
- */
-function workspaceHasReactRuntime(tree: Tree): boolean {
-  const packageJson = readJson<{
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-  }>(tree, 'package.json');
-
-  const declared = {
-    ...packageJson.devDependencies,
-    ...packageJson.dependencies,
-  };
-
-  return 'react' in declared || 'react-dom' in declared;
 }
 
 /**

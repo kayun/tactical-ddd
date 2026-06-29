@@ -1,5 +1,10 @@
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Tree, readJson, readProjectConfiguration } from '@nx/devkit';
+import {
+  Tree,
+  readJson,
+  readProjectConfiguration,
+  updateJson,
+} from '@nx/devkit';
 
 import { domainGenerator } from './domain';
 import { DomainGeneratorSchema } from './schema';
@@ -268,6 +273,62 @@ describe('domain generator', () => {
       await expect(domainGenerator(tree, baseOptions)).resolves.toEqual(
         expect.any(Function),
       );
+    });
+  });
+
+  describe('react runtime', () => {
+    // A React layer (features) under the react preset is what pulls the runtime
+    // in. `@nx/react` is told to skip adding it; the domain generator manages it
+    // centrally with the same policy as `init`.
+    const reactOptions: DomainGeneratorSchema = {
+      ...baseOptions,
+      preset: 'react',
+      layers: ['features'],
+    };
+
+    const deps = (): Record<string, string> =>
+      readJson(tree, 'package.json').dependencies ?? {};
+
+    const seedDependency = (name: string, version: string) =>
+      updateJson(tree, 'package.json', (json) => {
+        json.dependencies = { ...json.dependencies, [name]: version };
+        return json;
+      });
+
+    it('adds react and react-dom together at the same specifier when the workspace has neither', async () => {
+      await domainGenerator(tree, reactOptions);
+
+      // We only ever add the two halves together and at the same range, so we
+      // never introduce a react/react-dom skew of our own.
+      expect(deps()['react']).toBeDefined();
+      expect(deps()['react']).toBe(deps()['react-dom']);
+    });
+
+    it('does not add the React runtime when the workspace already has react', async () => {
+      // The exact ERESOLVE scenario: react is pinned, react-dom is absent, and a
+      // floating react-dom would resolve to a patch the pinned react rejects.
+      seedDependency('react', '19.2.3');
+
+      await domainGenerator(tree, reactOptions);
+
+      expect(deps()['react']).toBe('19.2.3');
+      expect(deps()).not.toHaveProperty('react-dom');
+    });
+
+    it('does not add the React runtime when the workspace already has react-dom', async () => {
+      seedDependency('react-dom', '^19.0.0');
+
+      await domainGenerator(tree, reactOptions);
+
+      expect(deps()['react-dom']).toBe('^19.0.0');
+      expect(deps()).not.toHaveProperty('react');
+    });
+
+    it('does not pull in the React runtime for a non-react preset', async () => {
+      await domainGenerator(tree, { ...baseOptions, layers: ['features'] });
+
+      expect(deps()).not.toHaveProperty('react');
+      expect(deps()).not.toHaveProperty('react-dom');
     });
   });
 });

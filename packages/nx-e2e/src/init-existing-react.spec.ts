@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 import {
@@ -13,20 +13,25 @@ import {
 jest.setTimeout(600_000);
 
 /**
- * Regression guard for the React-runtime handling in the `init` generator.
+ * Regression guard for the React-runtime handling in the `init` *and* `domain`
+ * generators.
  *
  * A real React workspace already ships its own `react`/`react-dom`, often with
  * an exactly pinned `react`. Declaring our own range on top of that adds nothing
  * but forces the package manager to re-resolve — which previously surfaced a
  * latent peer conflict (an exact `react` a newer `react-dom` patch no longer
- * satisfies) and aborted `npm install`, failing the whole generator.
+ * satisfies) and aborted `npm install`, failing the whole generator. `init`
+ * declared the runtime directly; the `domain` generator hit the same through
+ * `@nx/react`, which adds a floating `react-dom` when scaffolding a `features`
+ * layer.
  *
- * So `init` must leave the React runtime entirely alone when the workspace
- * already manages it. This suite pre-installs `react`/`react-dom` at exact
- * versions and asserts the generator completes and never touches them.
+ * So neither generator may touch the React runtime when the workspace already
+ * manages it. This suite pre-installs `react`/`react-dom` at exact versions,
+ * runs `init` and then a react-preset `domain`, and asserts both complete and
+ * never re-resolve or overwrite them.
  */
 describe.each(WORKSPACE_TYPES)(
-  '@tactical-ddd/nx init generator — existing React runtime (e2e) (%s)',
+  '@tactical-ddd/nx init + domain generators — existing React runtime (e2e) (%s)',
   (workspaceType) => {
     const PREFIX = '@e2e-org';
     const SHARED_DIR = 'libs/shared';
@@ -96,6 +101,55 @@ describe.each(WORKSPACE_TYPES)(
       for (const pkg of ['@nx/js', '@nx/react', '@nx/eslint', '@nx/jest']) {
         expect(devDependencies).toHaveProperty(pkg);
       }
+    });
+
+    // The `init`-prepared workspace already manages React, so generating a
+    // react-preset domain with a `features` layer must not bolt on a skewed
+    // `react-dom` via `@nx/react`. This describe builds on the same workspace.
+    describe('after a react-preset domain generator runs', () => {
+      const DOMAIN = 'billing';
+
+      const runDomain = () =>
+        execSync(
+          `npx nx g @tactical-ddd/nx:domain ${DOMAIN} --directory=libs/${DOMAIN} --prefix=${PREFIX} --layers=contracts --layers=core --layers=features --linter=eslint --unitTestRunner=jest --bundler=tsc --preset=react --no-interactive`,
+          { cwd: projectDirectory, stdio: 'inherit', env: process.env },
+        );
+
+      beforeAll(() => {
+        // Must not throw: with the workspace already managing React, the domain
+        // generator defers to it instead of letting `@nx/react` add a floating
+        // `react-dom` the pinned `react` no longer satisfies (an ERESOLVE).
+        runDomain();
+      });
+
+      it('scaffolds the domain features library', () => {
+        expect(
+          existsSync(
+            join(
+              projectDirectory,
+              'libs',
+              DOMAIN,
+              'features',
+              'src',
+              'index.ts',
+            ),
+          ),
+        ).toBe(true);
+      });
+
+      it('leaves the pinned react/react-dom untouched (adds no skewed react-dom)', () => {
+        const dependencies = readJson('package.json').dependencies ?? {};
+
+        expect(dependencies['react']).toBe(REACT_PINNED);
+        expect(dependencies['react-dom']).toBe(REACT_PINNED);
+      });
+
+      it('does not duplicate the React runtime into devDependencies', () => {
+        const devDependencies = readJson('package.json').devDependencies ?? {};
+
+        expect(devDependencies).not.toHaveProperty('react');
+        expect(devDependencies).not.toHaveProperty('react-dom');
+      });
     });
   },
 );
