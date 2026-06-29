@@ -1,0 +1,43 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Each matrix leg publishes the plugin to a local registry and scaffolds
+    # real Nx workspaces (both linking strategies), so give it ample time.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Verify the generators against every supported Nx major.
+        E2E_NX_VERSION: ['22', '23']
+    env:
+      # The cross-domain module-boundary lint flakes under isolated plugin
+      # workers; running the plugins in-process makes the graph deterministic.
+      NX_ISOLATE_PLUGINS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run generator e2e suite (Nx ${{ matrix.E2E_NX_VERSION }})
+        run: npx nx run @tactical-ddd/nx-e2e:e2e --skip-nx-cache
+        env:
+          E2E_NX_VERSION: ${{ matrix.E2E_NX_VERSION }}

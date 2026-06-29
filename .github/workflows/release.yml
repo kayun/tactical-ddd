@@ -1,0 +1,65 @@
+name: Release
+
+# Manual, deliberate releases: pick a version bump and run it from the Actions
+# tab. `nx release` versions every publishable package, writes changelogs, tags,
+# and publishes to npm (config lives in nx.json `release`).
+on:
+  workflow_dispatch:
+    inputs:
+      specifier:
+        description: 'Version bump (patch | minor | major | prerelease | <explicit version>)'
+        type: string
+        default: prerelease
+      preid:
+        description: 'Prerelease identifier (only used for pre* specifiers)'
+        type: string
+        default: alpha
+      dryRun:
+        description: 'Dry run — compute and print the release without publishing or pushing'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # commit the version bump + push the release tag
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history + tags so nx can derive the previous version/changelog.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run nx release
+        run: |
+          DRY=""
+          if [ "${{ inputs.dryRun }}" = "true" ]; then DRY="--dry-run"; fi
+          npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" $DRY --yes
+        env:
+          # setup-node wrote an .npmrc that reads this for `npm publish`.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Attach build provenance to the published packages.
+          NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: Push release commit and tag
+        if: ${{ inputs.dryRun == false }}
+        run: git push --follow-tags origin HEAD

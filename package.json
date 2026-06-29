@@ -7,6 +7,9 @@
     "email": "kayun.artem@gmail.com",
     "url": "https://github.com/kayun"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "nx": "nx",
     "test": "nx affected -t test --max-parallel 3 --passWithNoTests --exclude=@tactical-ddd/nx-e2e",

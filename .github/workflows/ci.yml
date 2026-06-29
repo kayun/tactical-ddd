@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. quick successive PR pushes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so `nx affected` can diff against the base commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Replaces Nx Cloud's remote cache: persist the local Nx cache between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            nx-${{ runner.os }}-
+
+      # Derives the base/head SHAs `nx affected` diffs against (last successful
+      # run on push to main, the PR base on pull_request).
+      - uses: nrwl/nx-set-shas@v4
+
+      - name: Lint and build affected projects
+        run: npx nx affected -t lint build
+
+      - name: Test affected projects with coverage
+        run: npx nx affected -t test --coverage --coverageReporters=lcov --coverageReporters=text-summary
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Don't fail the build if the upload itself hiccups.
+          fail_ci_if_error: false

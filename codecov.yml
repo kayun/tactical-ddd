@@ -1,0 +1,21 @@
+# Codecov configuration. Coverage is uploaded from the CI workflow (lcov from
+# `nx affected -t test --coverage`). Kept informational for now so coverage
+# noise never blocks a PR; tighten `target`/`threshold` once a baseline exists.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: 'reach, diff, files'
+  require_changes: true
+
+# The generators (dev-time) and their e2e harness aren't unit-coverage targets.
+ignore:
+  - 'packages/nx-e2e'
+  - '**/*.spec.ts'
+  - 'tools'
