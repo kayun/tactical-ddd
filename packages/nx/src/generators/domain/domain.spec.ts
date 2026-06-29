@@ -16,10 +16,6 @@ jest.mock('prettier', () => ({
   format: async (content: string) => content,
 }));
 
-// Each test runs the real `@nx/js` library generator (twice — contracts + core),
-// which comfortably exceeds Jest's 5s default on a cold CI runner.
-jest.setTimeout(30_000);
-
 const ESLINT_CONFIG = 'eslint.config.mjs';
 
 const ROOT_ESLINT_WITH_RULE = `import nx from '@nx/eslint-plugin';

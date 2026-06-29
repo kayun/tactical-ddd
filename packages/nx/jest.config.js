@@ -18,4 +18,7 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: 'test-output/jest/coverage',
+  // These specs run the real Nx generators (delegating to `@nx/js:library` etc.),
+  // which comfortably exceed Jest's 5s default on a cold CI runner.
+  testTimeout: 30_000,
 };

@@ -43,7 +43,7 @@ jobs:
       - uses: nrwl/nx-set-shas@v4
 
       - name: Lint and build affected projects
-        run: npx nx affected -t lint build
+        run: npx nx run-many -t lint build
 
       # Run the full test suite (not `affected`) so coverage is always complete:
       # Codecov needs the whole report every run to track the project total, and
