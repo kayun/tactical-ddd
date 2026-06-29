@@ -24,6 +24,9 @@
     "email": "kayun.artem@gmail.com",
     "url": "https://github.com/kayun"
   },
+  "repository": {
+    "url": "https://github.com/kayun/tactical-ddd/tree/main/packages/nx"
+  },
   "type": "commonjs",
   "main": "./index.js",
   "module": "./index.js",

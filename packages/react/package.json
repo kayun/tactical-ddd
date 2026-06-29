@@ -23,6 +23,9 @@
     "email": "kayun.artem@gmail.com",
     "url": "https://github.com/kayun"
   },
+  "repository": {
+    "url": "https://github.com/kayun/tactical-ddd/tree/main/packages/react"
+  },
   "type": "module",
   "main": "./index.js",
   "module": "./index.js",
