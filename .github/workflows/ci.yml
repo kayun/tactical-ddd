@@ -49,7 +49,7 @@ jobs:
         run: npx nx affected -t test --coverage --coverageReporters=lcov --coverageReporters=text-summary
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           # Don't fail the build if the upload itself hiccups.
