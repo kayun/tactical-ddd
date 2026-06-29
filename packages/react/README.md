@@ -1,3 +1,7 @@
+[![npm version](https://img.shields.io/npm/v/@tactical-ddd/react)](https://www.npmjs.com/package/@tactical-ddd/react)
+[![npm downloads](https://img.shields.io/npm/dm/@tactical-ddd/react)](https://www.npmjs.com/package/@tactical-ddd/react)
+[![license](https://img.shields.io/npm/l/@tactical-ddd/react)](https://github.com/kayun/tactical-ddd/blob/main/LICENSE)
+
 # @tactical-ddd/react
 
 `@tactical-ddd/react` is the React layer of the `@tactical-ddd` ecosystem — a collection of shared, domain-agnostic React building blocks (components, hooks, and utilities) for applications structured around Domain-Driven Design (DDD) and Clean Architecture.
