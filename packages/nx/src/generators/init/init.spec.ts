@@ -417,6 +417,66 @@ describe('init generator', () => {
         );
       });
 
+      it('pins react and react-dom to the same specifier when it adds them', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        // We only ever add the two halves of the runtime together and at the
+        // same range, so we never introduce a react/react-dom skew of our own.
+        expect(deps()['react']).toBe(deps()['react-dom']);
+      });
+
+      it('does not add the React runtime when the workspace already has react', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          // A React app pins its own react exactly; react-dom is absent here so
+          // we also prove we never add the missing half on top of it.
+          json.dependencies = { ...json.dependencies, react: '19.2.3' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        // Existing version is left untouched and react-dom is not introduced —
+        // we defer entirely to whatever the workspace already manages.
+        expect(deps()['react']).toBe('19.2.3');
+        expect(deps()).not.toHaveProperty('react-dom');
+      });
+
+      it('does not add the React runtime when the workspace already has react-dom', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.dependencies = { ...json.dependencies, 'react-dom': '^19.0.0' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        expect(deps()['react-dom']).toBe('^19.0.0');
+        expect(deps()).not.toHaveProperty('react');
+      });
+
+      it('still adds the @tactical-ddd/react bindings when react is already present', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.dependencies = { ...json.dependencies, react: '19.2.3' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        // Skipping the runtime must not skip our own bindings — they always ship.
+        expect(deps()).toHaveProperty('@tactical-ddd/react');
+      });
+
+      it('detects an existing React runtime declared as a devDependency', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.devDependencies = { ...json.devDependencies, react: '19.2.3' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+        expect(deps()).not.toHaveProperty('react');
+        expect(deps()).not.toHaveProperty('react-dom');
+      });
+
       it('does not pull in React tooling without the react preset', async () => {
         await initGenerator(tree, baseOptions);
 

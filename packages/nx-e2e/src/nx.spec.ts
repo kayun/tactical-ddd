@@ -1,7 +1,6 @@
 import { execSync } from 'child_process';
-import { rmSync } from 'fs';
 
-import { createTestProject } from './test-utils';
+import { cleanupProject, createTestProject } from './test-utils';
 
 // Scaffolding a workspace and installing the plugin is slow.
 jest.setTimeout(600_000);
@@ -16,13 +15,7 @@ describe('@tactical-ddd/nx', () => {
   });
 
   afterAll(() => {
-    if (projectDirectory) {
-      // Cleanup the test project
-      rmSync(projectDirectory, {
-        recursive: true,
-        force: true,
-      });
-    }
+    cleanupProject(projectDirectory);
   });
 
   it('should be installed', () => {

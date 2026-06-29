@@ -1,8 +1,9 @@
 import { execSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync, rmSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 import {
+  cleanupProject,
   createTestProject,
   createWorkspaceReader,
   type WorkspaceReader,
@@ -42,9 +43,7 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
   });
 
   afterAll(() => {
-    if (projectDirectory) {
-      rmSync(projectDirectory, { recursive: true, force: true });
-    }
+    cleanupProject(projectDirectory);
   });
 
   it.each(LAYERS)('scaffolds the "%s" library under libs/shared', (layer) => {

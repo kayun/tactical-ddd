@@ -2,6 +2,7 @@ import {
   addDependenciesToPackageJson,
   formatFiles,
   NX_VERSION,
+  readJson,
   readNxJson,
   runTasksInSerial,
   updateNxJson,
@@ -41,12 +42,14 @@ const REACT_LIBRARY_GENERATORS = ['@nx/react:library'] as const;
 const TACTICAL_DDD_REACT = '@tactical-ddd/react';
 
 /**
- * React runtime versions added to the *user's* workspace under the `react`
- * preset. Kept in step with the React version `@nx/react`'s own generators
- * install so the two never disagree.
+ * React runtime version added to the *user's* workspace under the `react`
+ * preset. `react` and `react-dom` are pinned to the *same* specifier and only
+ * ever added together (see {@link ensureGeneratorDependencies}) so we never
+ * introduce a `react` vs `react-dom` version skew of our own. Kept in step with
+ * the React version `@nx/react`'s own generators install so the two never
+ * disagree.
  */
 const REACT_VERSION = '^19.0.0';
-const REACT_DOM_VERSION = '^19.0.0';
 
 /**
  * Version specifier to install `@tactical-ddd/react` at. The React bindings are
@@ -113,8 +116,17 @@ export async function initGenerator(
  * Dependencies are scoped to the chosen options: the ESLint tooling is only
  * required when `linter: 'eslint'`, and the test-runner plugin follows
  * `unitTestRunner`. The `react` preset additionally pulls in the `@nx/react`
- * generator plugin (dev-time) plus the React runtime — `react`, `react-dom`
- * and the `@tactical-ddd/react` bindings — as production dependencies.
+ * generator plugin (dev-time) plus the `@tactical-ddd/react` bindings as a
+ * production dependency.
+ *
+ * The `react`/`react-dom` runtime is treated carefully: a React workspace
+ * already ships its own React, and declaring our own range on top adds nothing
+ * but forces the package manager to re-resolve — which can surface a latent
+ * peer-dependency conflict already present in the workspace (e.g. an exactly
+ * pinned `react` that a newer `react-dom` patch no longer satisfies) and abort
+ * the install. So we only add `react` and `react-dom` when *neither* is already
+ * present, and add them together at the same {@link REACT_VERSION} specifier —
+ * never introducing a skew of our own.
  */
 function ensureGeneratorDependencies(
   tree: Tree,
@@ -143,13 +155,39 @@ function ensureGeneratorDependencies(
   if (options.preset === 'react') {
     // Dev-time: powers the `@nx/react:library` defaults and React generators.
     devDependencies['@nx/react'] = NX_VERSION;
-    // Run-time: the React framework and our React bindings ship in the app.
-    dependencies['react'] = REACT_VERSION;
-    dependencies['react-dom'] = REACT_DOM_VERSION;
+    // Run-time: our React bindings always ship in the app.
     dependencies[TACTICAL_DDD_REACT] = tacticalDddReactVersion();
+
+    // Only provide the React runtime when the workspace manages neither half of
+    // it yet; if it already has `react` (or `react-dom`), defer to whatever
+    // versions it pinned rather than re-resolving and risking a peer conflict.
+    if (!workspaceHasReactRuntime(tree)) {
+      dependencies['react'] = REACT_VERSION;
+      dependencies['react-dom'] = REACT_VERSION;
+    }
   }
 
   return addDependenciesToPackageJson(tree, dependencies, devDependencies);
+}
+
+/**
+ * Whether the workspace `package.json` already declares `react` or `react-dom`
+ * (in either `dependencies` or `devDependencies`). When it does, `init` leaves
+ * the React runtime untouched so it can't introduce a version skew or trigger a
+ * conflicting re-resolve.
+ */
+function workspaceHasReactRuntime(tree: Tree): boolean {
+  const packageJson = readJson<{
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  }>(tree, 'package.json');
+
+  const declared = {
+    ...packageJson.devDependencies,
+    ...packageJson.dependencies,
+  };
+
+  return 'react' in declared || 'react-dom' in declared;
 }
 
 /**

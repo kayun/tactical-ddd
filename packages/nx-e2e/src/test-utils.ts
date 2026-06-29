@@ -85,6 +85,26 @@ export function createTestProject(projectName: string): string {
 }
 
 /**
+ * Removes a test workspace directory. Safe to call from `afterAll` regardless of
+ * whether {@link createTestProject} ran — a missing/empty path is a no-op.
+ *
+ * A workspace that ran generators may still have the Nx daemon (or a lingering
+ * package-manager process) writing into the temp dir, so a single recursive
+ * remove can race and throw `ENOTEMPTY`/`EBUSY` mid-traversal. `rmSync`'s
+ * built-in retry loop is meant for exactly these transient errors.
+ */
+export function cleanupProject(projectDirectory: string | undefined): void {
+  if (projectDirectory) {
+    rmSync(projectDirectory, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
+  }
+}
+
+/**
  * Root ESLint config file names a create-nx-workspace may emit — flat config
  * (newest) first, then the legacy `.eslintrc.*` formats. The generators detect
  * and update whichever is present via `@nx/eslint`'s AST utils.

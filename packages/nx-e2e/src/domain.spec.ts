@@ -1,8 +1,9 @@
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 
 import {
+  cleanupProject,
   createTestProject,
   createWorkspaceReader,
   type WorkspaceReader,
@@ -121,9 +122,7 @@ describe('@tactical-ddd/nx domain generator (e2e)', () => {
   });
 
   afterAll(() => {
-    if (projectDirectory) {
-      rmSync(projectDirectory, { recursive: true, force: true });
-    }
+    cleanupProject(projectDirectory);
   });
 
   describe('layer scaffolding', () => {

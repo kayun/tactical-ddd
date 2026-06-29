@@ -1,8 +1,9 @@
 import { execSync } from 'child_process';
-import { existsSync, rmSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 import {
+  cleanupProject,
   createTestProject,
   createWorkspaceReader,
   type WorkspaceReader,
@@ -39,9 +40,7 @@ describe('@tactical-ddd/nx init generator (e2e)', () => {
   });
 
   afterAll(() => {
-    if (projectDirectory) {
-      rmSync(projectDirectory, { recursive: true, force: true });
-    }
+    cleanupProject(projectDirectory);
   });
 
   describe('generator defaults', () => {
