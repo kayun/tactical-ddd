@@ -11,6 +11,21 @@ import { tmpdir } from 'os';
  */
 export const E2E_NX_VERSION = process.env.E2E_NX_VERSION ?? '23';
 
+/**
+ * The two project-linking strategies Nx workspaces can use, which the generators
+ * must support equally. Every e2e suite runs against both (see the
+ * `describe.each(WORKSPACE_TYPES)` wrappers):
+ *
+ *   - `ts-solution`     — package-manager workspaces + TS project references
+ *     (the modern "TS solution" setup). Libraries are configured through the
+ *     `package.json` `nx` block and resolved via the root `workspaces` field.
+ *   - `tsconfig-paths`  — the classic integrated monorepo, where libraries are
+ *     configured in `project.json` and resolved via `tsconfig.base.json` paths.
+ */
+export const WORKSPACE_TYPES = ['ts-solution', 'tsconfig-paths'] as const;
+
+export type WorkspaceType = (typeof WORKSPACE_TYPES)[number];
+
 // `@nx/*` packages pinned to {@link E2E_NX_VERSION}. Installing the plugin pulls
 // the newest version satisfying its `^22 || ^23` range (i.e. 23) and its peers
 // can drag the whole workspace up with it, so we pin these back to the target
@@ -25,22 +40,64 @@ const PINNED_NX_PACKAGES = [
 ];
 
 /**
- * Creates an isolated Nx workspace under `tmp/<projectName>-nx<major>` and
- * installs the locally-published `@tactical-ddd/nx` plugin into it.
+ * `create-nx-workspace` flag selecting the linking strategy. Kept aligned with
+ * {@link createWorkspaceEnv} as an explicit, documented statement of intent.
+ */
+function workspaceFlags(workspaceType: WorkspaceType): string {
+  return workspaceType === 'ts-solution' ? '--workspaces' : '--no-workspaces';
+}
+
+/**
+ * Environment for the `create-nx-workspace` invocation that deterministically
+ * pins the scaffolded workspace shape.
+ *
+ * `create-nx-workspace` switches to an "agent" mode when it detects a coding
+ * agent via `CLAUDECODE`/`OPENCODE`, and that mode's non-interactive defaults
+ * pick the modern package-manager-workspaces (TS solution) setup, whereas the
+ * classic non-interactive defaults produce an integrated, `tsconfig.base.json`
+ * paths workspace. The CLI flags above do not override this, so we drive it
+ * directly — setting the signal for `ts-solution` and stripping it for
+ * `tsconfig-paths` — which makes the shape reproducible regardless of whether
+ * the suite itself happens to run under an agent.
+ */
+function createWorkspaceEnv(workspaceType: WorkspaceType): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+
+  if (workspaceType === 'ts-solution') {
+    env.CLAUDECODE = '1';
+  } else {
+    delete env.CLAUDECODE;
+    delete env.CLAUDE_CODE;
+    delete env.OPENCODE;
+  }
+
+  return env;
+}
+
+/**
+ * Creates an isolated Nx workspace under
+ * `tmp/<projectName>-<workspaceType>-nx<major>` and installs the
+ * locally-published `@tactical-ddd/nx` plugin into it.
  *
  * The plugin is served from the verdaccio registry started in the jest
  * `globalSetup` (`tools/scripts/start-local-registry.ts`) and published under
  * the `@e2e` dist-tag, so the install resolves the latest built source. The
  * workspace is created with — and pinned to — the {@link E2E_NX_VERSION} major.
  *
- * @param projectName Unique workspace name — also the temp sub-directory.
- *   Use a distinct name per spec file so suites running in band don't collide.
+ * @param projectName Base workspace name — combined with {@link workspaceType}
+ *   and the Nx major into the temp sub-directory. Use a distinct name per spec
+ *   file so suites running in band don't collide.
+ * @param workspaceType Which project-linking strategy to scaffold (see
+ *   {@link WORKSPACE_TYPES}).
  * @returns Absolute path to the created workspace.
  */
-export function createTestProject(projectName: string): string {
-  // Suffix the workspace with the Nx major so the two version runs never share
-  // a directory (and the version under test is obvious when debugging).
-  const workspaceName = `${projectName}-nx${E2E_NX_VERSION}`;
+export function createTestProject(
+  projectName: string,
+  workspaceType: WorkspaceType,
+): string {
+  // Suffix the workspace with the linking strategy and Nx major so the runs
+  // never share a directory (and the variant under test is obvious in logs).
+  const workspaceName = `${projectName}-${workspaceType}-nx${E2E_NX_VERSION}`;
 
   // Scaffold outside the repository's working tree: the repo `.gitignore`
   // ignores `tmp/`, and `create-nx-workspace`'s `git add` aborts on ignored
@@ -52,15 +109,15 @@ export function createTestProject(projectName: string): string {
   mkdirSync(dirname(projectDirectory), { recursive: true });
 
   execSync(
-    `npx create-nx-workspace@${E2E_NX_VERSION} ${workspaceName} --preset apps --nxCloud=skip --no-interactive`,
+    `npx create-nx-workspace@${E2E_NX_VERSION} ${workspaceName} --preset apps ${workspaceFlags(workspaceType)} --nxCloud=skip --no-interactive`,
     {
       cwd: dirname(projectDirectory),
       stdio: 'inherit',
-      env: process.env,
+      env: createWorkspaceEnv(workspaceType),
     },
   );
   console.log(
-    `Created test project in "${projectDirectory}" (Nx ${E2E_NX_VERSION})`,
+    `Created ${workspaceType} test project in "${projectDirectory}" (Nx ${E2E_NX_VERSION})`,
   );
 
   // Install the plugin built from the latest source into the test repo.
@@ -89,18 +146,40 @@ export function createTestProject(projectName: string): string {
  * whether {@link createTestProject} ran — a missing/empty path is a no-op.
  *
  * A workspace that ran generators may still have the Nx daemon (or a lingering
- * package-manager process) writing into the temp dir, so a single recursive
- * remove can race and throw `ENOTEMPTY`/`EBUSY` mid-traversal. `rmSync`'s
- * built-in retry loop is meant for exactly these transient errors.
+ * package-manager process) writing into the temp dir, so a recursive remove can
+ * race and throw `ENOTEMPTY`/`EBUSY` mid-traversal. We stop the daemon first to
+ * release its handles, retry the removal, and — since cleaning a temp directory
+ * is best-effort — swallow a final failure rather than failing the whole suite
+ * from `afterAll`. Any leftovers sit in the OS temp dir and are wiped by the
+ * next `createTestProject` that reuses the path.
  */
 export function cleanupProject(projectDirectory: string | undefined): void {
-  if (projectDirectory) {
+  if (!projectDirectory) {
+    return;
+  }
+
+  try {
+    execSync('npx nx daemon --stop', {
+      cwd: projectDirectory,
+      stdio: 'ignore',
+    });
+  } catch {
+    // The daemon may not be running (or nx may be half-removed already).
+  }
+
+  try {
     rmSync(projectDirectory, {
       recursive: true,
       force: true,
-      maxRetries: 5,
-      retryDelay: 200,
+      maxRetries: 10,
+      retryDelay: 300,
     });
+  } catch (error) {
+    console.warn(
+      `cleanupProject: could not fully remove ${projectDirectory}: ${
+        (error as Error).message
+      }`,
+    );
   }
 }
 
