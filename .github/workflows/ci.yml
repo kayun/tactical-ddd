@@ -45,12 +45,20 @@ jobs:
       - name: Lint and build affected projects
         run: npx nx affected -t lint build
 
-      - name: Test affected projects with coverage
-        run: npx nx affected -t test --coverage --coverageReporters=lcov --coverageReporters=text-summary
+      # Run the full test suite (not `affected`) so coverage is always complete:
+      # Codecov needs the whole report every run to track the project total, and
+      # an `affected` run can legitimately test nothing and emit no lcov.
+      # `--skip-nx-cache` so the run always executes and writes fresh lcov: a
+      # cache hit replays the task without re-emitting the coverage files, which
+      # would leave Codecov with nothing to upload.
+      - name: Test with coverage
+        run: npx nx run-many -t test --coverage --coverageReporters=lcov --coverageReporters=text-summary --exclude=@tactical-ddd/nx-e2e --skip-nx-cache
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          # The lcov files Jest writes per project (Codecov auto-discovers them).
+          files: ./packages/nx/test-output/jest/coverage/lcov.info,./packages/react/test-output/jest/coverage/lcov.info
           # Don't fail the build if the upload itself hiccups.
           fail_ci_if_error: false

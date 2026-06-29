@@ -56,7 +56,7 @@ jobs:
           npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" $DRY --yes
         env:
           # setup-node wrote an .npmrc that reads this for `npm publish`.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.TACTICAL_DDD_NPM_TOKEN }}
           # Attach build provenance to the published packages.
           NPM_CONFIG_PROVENANCE: 'true'
 
