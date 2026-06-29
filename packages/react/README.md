@@ -1,6 +1,8 @@
 [![npm version](https://img.shields.io/npm/v/@tactical-ddd/react)](https://www.npmjs.com/package/@tactical-ddd/react)
 [![npm downloads](https://img.shields.io/npm/dm/@tactical-ddd/react)](https://www.npmjs.com/package/@tactical-ddd/react)
 [![license](https://img.shields.io/npm/l/@tactical-ddd/react)](https://github.com/kayun/tactical-ddd/blob/main/LICENSE)
+[![CI](https://github.com/kayun/tactical-ddd/actions/workflows/ci.yml/badge.svg)](https://github.com/kayun/tactical-ddd/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kayun/tactical-ddd/branch/main/graph/badge.svg)](https://codecov.io/gh/kayun/tactical-ddd)
 
 # @tactical-ddd/react
 

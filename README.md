@@ -1,5 +1,9 @@
 # @tactical-ddd
 
+[![CI](https://github.com/kayun/tactical-ddd/actions/workflows/ci.yml/badge.svg)](https://github.com/kayun/tactical-ddd/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kayun/tactical-ddd/branch/main/graph/badge.svg)](https://codecov.io/gh/kayun/tactical-ddd)
+[![license](https://img.shields.io/npm/l/@tactical-ddd/nx)](https://github.com/kayun/tactical-ddd/blob/main/LICENSE)
+
 A suite of tools for generating and enforcing **Domain-Driven Design (DDD)** architectures inside [Nx](https://nx.dev) monorepos.
 
 The ecosystem deliberately separates two concerns:
