@@ -61,7 +61,6 @@ export async function domainGenerator(
       await jsLibraryGenerator(tree, {
         name: layerName(options, 'contracts'),
         directory: contractsRoot,
-        useProjectJson: false,
         addPlugin: true,
         unitTestRunner: 'none',
         bundler: options.bundler,
@@ -92,7 +91,6 @@ export async function domainGenerator(
       await jsLibraryGenerator(tree, {
         name: layerName(options, 'core'),
         directory: coreRoot,
-        useProjectJson: false,
         addPlugin: true,
         unitTestRunner: options.unitTestRunner,
         bundler: options.bundler,
@@ -225,7 +223,6 @@ async function generateLayerLibrary(
     return await reactLibraryGenerator(tree, {
       name: layer.name,
       directory: layer.root,
-      useProjectJson: false,
       addPlugin: true,
       unitTestRunner: options.unitTestRunner,
       bundler: options.bundler,
@@ -238,7 +235,6 @@ async function generateLayerLibrary(
   const task = await jsLibraryGenerator(tree, {
     name: layer.name,
     directory: layer.root,
-    useProjectJson: false,
     addPlugin: true,
     unitTestRunner: options.unitTestRunner,
     bundler: options.bundler,

@@ -42,13 +42,11 @@ export async function sharedKernelGenerator(
           ? `${options.prefix}/shared-contracts`
           : 'shared-contracts',
         directory: contractsRoot,
-        useProjectJson: false,
         addPlugin: true,
         unitTestRunner: 'none',
         bundler: options.bundler,
         linter: options.linter,
         tags: `${LibraryScope.Shared},${LibraryType.Contracts}`,
-        minimal: true,
       }),
     );
 
@@ -75,13 +73,11 @@ export async function sharedKernelGenerator(
           ? `${options.prefix}/shared-utils`
           : 'shared-utils',
         directory: utilsRoot,
-        useProjectJson: false,
         addPlugin: true,
         unitTestRunner: options.unitTestRunner,
         bundler: options.bundler,
         linter: options.linter,
         tags: `${LibraryScope.Shared},${LibraryType.Utils}`,
-        minimal: true,
       }),
     );
 
@@ -101,13 +97,11 @@ export async function sharedKernelGenerator(
           ? `${options.prefix}/shared-infrastructure`
           : 'shared-infrastructure',
         directory: infrastructureRoot,
-        useProjectJson: false,
         addPlugin: true,
         unitTestRunner: options.unitTestRunner,
         bundler: options.bundler,
         linter: options.linter,
         tags: `${LibraryScope.Shared},${LibraryType.Infrastructure}`,
-        minimal: true,
       }),
     );
 

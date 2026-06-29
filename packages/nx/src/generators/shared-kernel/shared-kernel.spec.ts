@@ -378,7 +378,11 @@ describe('shared-kernel generator', () => {
 
       await sharedKernelGenerator(tree, baseOptions);
 
-      expect(tree.exists('libs/shared/contracts/package.json')).toBe(true);
+      // The project is registered (manifest-agnostic: `@nx/js:library` writes
+      // `project.json` in this integrated workspace) and its source exists.
+      expect(readProjectConfiguration(tree, 'shared-contracts').root).toBe(
+        'libs/shared/contracts',
+      );
       expect(tree.exists('libs/shared/contracts/src/index.ts')).toBe(true);
     });
   });

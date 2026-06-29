@@ -2,7 +2,11 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
 
-import { createTestProject } from './test-utils';
+import {
+  createTestProject,
+  createWorkspaceReader,
+  type WorkspaceReader,
+} from './test-utils';
 
 // Booting a real Nx workspace, installing the plugin and running the generator
 // is slow, so give the whole suite a generous time budget.
@@ -14,6 +18,7 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
   const LAYERS = ['contracts', 'utils', 'infrastructure'] as const;
 
   let projectDirectory: string;
+  let ws: WorkspaceReader;
 
   // `prefix` is a required option, so it is always passed. It only affects the
   // generated package names (e.g. `@e2e-org/shared-contracts`); the libraries
@@ -24,18 +29,15 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
       { cwd: projectDirectory, stdio: 'inherit', env: process.env },
     );
 
+  // Workspace-relative dir of a shared layer (for the manifest/tag readers);
+  // `layerRoot` is its absolute form, for reading source files on disk.
+  const layerDir = (layer: string) => join(SHARED_DIR, layer);
   const layerRoot = (layer: string) =>
     join(projectDirectory, SHARED_DIR, layer);
 
-  // Assertions read the generated files directly rather than going through
-  // `nx show project`: right after generation the Nx daemon may still serve a
-  // graph computed before the libraries existed, so the project list races and
-  // can come back empty. The generated package.json is the source of truth.
-  const readLibManifest = (layer: string) =>
-    JSON.parse(readFileSync(join(layerRoot(layer), 'package.json'), 'utf-8'));
-
   beforeAll(() => {
     projectDirectory = createTestProject('test-project-shared-kernel');
+    ws = createWorkspaceReader(projectDirectory);
     runGenerator();
   });
 
@@ -54,14 +56,14 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
     ['utils', 'type:utils'],
     ['infrastructure', 'type:infrastructure'],
   ])('tags the "%s" library with scope:shared and %s', (layer, typeTag) => {
-    const tags: string[] = readLibManifest(layer).nx?.tags ?? [];
+    const tags = ws.readTags(layerDir(layer));
 
     expect(tags).toEqual(expect.arrayContaining(['scope:shared', typeTag]));
   });
 
   it('does not register a domain scope on any shared library', () => {
     for (const layer of LAYERS) {
-      const tags: string[] = readLibManifest(layer).nx?.tags ?? [];
+      const tags = ws.readTags(layerDir(layer));
       expect(tags).not.toContain('scope:domain');
     }
   });
@@ -110,10 +112,11 @@ describe('@tactical-ddd/nx shared-kernel generator (e2e)', () => {
 
     it('uses module-format-aware import extensions in the contracts index', () => {
       // The generator keys the `.js` extension off the library's resolved
-      // module format, whose most direct signal is package.json `"type"`. The
-      // barrel must agree with whatever create-nx-workspace emitted, so derive
-      // the expectation from the manifest rather than hard-coding ESM or CJS.
-      const isEsm = readLibManifest('contracts').type === 'module';
+      // module format. The barrel must agree with whatever create-nx-workspace
+      // emitted, so derive the expectation the same way the generator does
+      // (package.json `"type"`, else the tsconfig `module` option) rather than
+      // hard-coding ESM or CJS — the two workspace shapes differ here.
+      const isEsm = ws.moduleFormat(layerDir('contracts')) === 'esm';
       const index = readFileSync(contractsSrc('index.ts'), 'utf-8');
 
       if (isEsm) {

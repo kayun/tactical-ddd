@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
 import { join, dirname } from 'path';
-import { mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 
 /**
@@ -83,3 +83,180 @@ export function createTestProject(projectName: string): string {
 
   return projectDirectory;
 }
+
+/**
+ * Root ESLint config file names a create-nx-workspace may emit — flat config
+ * (newest) first, then the legacy `.eslintrc.*` formats. The generators detect
+ * and update whichever is present via `@nx/eslint`'s AST utils.
+ */
+export const ESLINT_CONFIG_FILES = [
+  'eslint.config.mjs',
+  'eslint.config.js',
+  'eslint.config.cjs',
+  'eslint.config.ts',
+  '.eslintrc.json',
+  '.eslintrc.js',
+  '.eslintrc.cjs',
+  '.eslintrc',
+];
+
+/**
+ * Bundles the file/lint assertions every e2e spec runs against a generated
+ * workspace, bound to its root directory so callers pass only workspace-relative
+ * paths.
+ *
+ * Specs read the generated files directly rather than going through `nx show
+ * project`: right after generation the Nx daemon may still serve a graph
+ * computed before the libraries existed, so the project list races and can come
+ * back empty. The generated files are the source of truth.
+ */
+export function createWorkspaceReader(projectDirectory: string) {
+  /** Absolute path to a workspace-relative location. */
+  const resolve = (...segments: string[]): string =>
+    join(projectDirectory, ...segments);
+
+  /** Parse a JSON file at a workspace-relative path. */
+  const readJson = (relativePath: string) =>
+    JSON.parse(readFileSync(resolve(relativePath), 'utf-8'));
+
+  /** Parse a library's `package.json` (libDir is workspace-relative). */
+  const readManifest = (libDir: string) =>
+    readJson(join(libDir, 'package.json'));
+
+  /**
+   * A library's Nx project config, normalized across manifests: `@nx/js:library`
+   * writes `project.json` in an integrated (tsconfig-paths) workspace, or the
+   * `package.json` `nx` block under package-manager workspaces — and the
+   * bundler-less integrated case leaves only `project.json` (no `package.json`
+   * at all). `project.json` wins when both exist.
+   */
+  const readProjectConfig = (
+    libDir: string,
+  ): { name?: string; tags: string[]; targets: Record<string, unknown> } => {
+    const projectJson = resolve(libDir, 'project.json');
+    if (existsSync(projectJson)) {
+      const json = JSON.parse(readFileSync(projectJson, 'utf-8'));
+      return {
+        name: json.name,
+        tags: json.tags ?? [],
+        targets: json.targets ?? {},
+      };
+    }
+    const pkg = readManifest(libDir);
+    return {
+      name: pkg.name,
+      tags: pkg.nx?.tags ?? [],
+      targets: pkg.nx?.targets ?? {},
+    };
+  };
+
+  /** A library's tags, from whichever manifest the workspace shape carries. */
+  const readTags = (libDir: string): string[] => readProjectConfig(libDir).tags;
+
+  // Walk a tsconfig's `extends` chain until `compilerOptions.module` is found.
+  // tsconfigs may be JSONC, so strip comments/trailing commas before parsing.
+  const readTsModuleOption = (
+    tsConfigPath: string,
+    visited = new Set<string>(),
+  ): string | undefined => {
+    if (visited.has(tsConfigPath) || !existsSync(tsConfigPath)) {
+      return undefined;
+    }
+    visited.add(tsConfigPath);
+
+    const config = JSON.parse(
+      readFileSync(tsConfigPath, 'utf-8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1')
+        .replace(/,(\s*[}\]])/g, '$1'),
+    );
+
+    const localModule = config.compilerOptions?.module;
+    if (typeof localModule === 'string') {
+      return localModule;
+    }
+
+    // TS resolves multiple `extends` left-to-right with later entries winning,
+    // so search them in reverse for the effective value.
+    const parents = Array.isArray(config.extends)
+      ? [...config.extends].reverse()
+      : config.extends
+        ? [config.extends]
+        : [];
+    for (const parent of parents) {
+      const inherited = readTsModuleOption(
+        join(dirname(tsConfigPath), parent),
+        visited,
+      );
+      if (inherited) return inherited;
+    }
+    return undefined;
+  };
+
+  /**
+   * The module format a generated library ships in. Mirrors the generator's
+   * resolution so the assertion holds across workspace shapes: `package.json`
+   * `"type"` first (when that manifest exists), then the `module` compiler
+   * option from `tsconfig.lib.json`. An integrated workspace emits no per-lib
+   * `package.json`, so the tsconfig signal is what carries the format there.
+   */
+  const moduleFormat = (libDir: string): 'esm' | 'cjs' => {
+    const packageJson = resolve(libDir, 'package.json');
+    if (existsSync(packageJson)) {
+      const { type } = JSON.parse(readFileSync(packageJson, 'utf-8'));
+      if (type === 'module') return 'esm';
+      if (type === 'commonjs') return 'cjs';
+    }
+
+    const moduleOption = (
+      readTsModuleOption(resolve(libDir, 'tsconfig.lib.json')) ?? ''
+    ).toLowerCase();
+    // commonjs/amd/umd/system are CJS-era module systems; esnext/es*/nodenext/
+    // node*/preserve — and the integrated-workspace default — are ESM-oriented.
+    return ['commonjs', 'amd', 'umd', 'system'].includes(moduleOption)
+      ? 'cjs'
+      : 'esm';
+  };
+
+  /** Contents of the workspace's root ESLint config (throws if none found). */
+  const readEslintConfig = (): string => {
+    const file = ESLINT_CONFIG_FILES.map((name) => resolve(name)).find(
+      existsSync,
+    );
+    if (!file) {
+      throw new Error('No root ESLint config found in the test workspace');
+    }
+    return readFileSync(file, 'utf-8');
+  };
+
+  // Runs `nx lint` for a project and returns its combined output. The daemon is
+  // disabled so the project graph reflects the files we just wrote rather than a
+  // stale snapshot. Returns '' when lint passes (non-zero exit ⇒ captured here).
+  const lintOutput = (project: string): string => {
+    try {
+      execSync(`npx nx lint ${project} --skip-nx-cache`, {
+        cwd: projectDirectory,
+        stdio: 'pipe',
+        env: { ...process.env, NX_DAEMON: 'false' },
+      });
+      return '';
+    } catch (error) {
+      const e = error as { stdout?: Buffer; stderr?: Buffer };
+      return `${e.stdout?.toString() ?? ''}${e.stderr?.toString() ?? ''}`;
+    }
+  };
+
+  return {
+    resolve,
+    readJson,
+    readManifest,
+    readProjectConfig,
+    readTags,
+    moduleFormat,
+    readEslintConfig,
+    lintOutput,
+  };
+}
+
+/** The file/lint assertions an e2e spec runs against a generated workspace. */
+export type WorkspaceReader = ReturnType<typeof createWorkspaceReader>;
