@@ -25,6 +25,7 @@ describe('shared-kernel generator', () => {
     linter: 'eslint',
     unitTestRunner: 'jest',
     bundler: 'none',
+    prefix: '',
   };
 
   // The three kernel layers: generated project name, library root and type tag.
@@ -335,6 +336,44 @@ describe('shared-kernel generator', () => {
 
     it('leaves an empty barrel index.ts', () => {
       expect(tree.read(`${root}/src/index.ts`, 'utf-8')?.trim()).toBe('');
+    });
+  });
+
+  describe('README description files', () => {
+    describe('without a prefix', () => {
+      beforeEach(async () => {
+        await sharedKernelGenerator(tree, baseOptions);
+      });
+
+      it.each(LAYERS)(
+        'writes a titled README into the $project library',
+        ({ project, root }) => {
+          expect(tree.exists(`${root}/README.md`)).toBe(true);
+          // The default `@nx/js` README is overwritten with ours, whose H1 is
+          // the package name — unprefixed here.
+          expect(tree.read(`${root}/README.md`, 'utf-8')).toContain(
+            `# ${project}`,
+          );
+        },
+      );
+    });
+
+    describe('with a prefix', () => {
+      beforeEach(async () => {
+        await sharedKernelGenerator(tree, {
+          ...baseOptions,
+          prefix: '@my-org',
+        });
+      });
+
+      it.each(LAYERS)(
+        'titles the $project README with the prefixed package name',
+        ({ project, root }) => {
+          expect(tree.read(`${root}/README.md`, 'utf-8')).toContain(
+            `# @my-org/${project}`,
+          );
+        },
+      );
     });
   });
 

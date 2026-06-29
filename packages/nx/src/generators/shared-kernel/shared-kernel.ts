@@ -57,7 +57,7 @@ export async function sharedKernelGenerator(
       tree,
       resolve(__dirname, 'files/contracts'),
       contractsRoot,
-      { esm: type === ModuleFormat.EsModule },
+      { esm: type === ModuleFormat.EsModule, prefix: options.prefix ?? '' },
       { overwriteStrategy: OverwriteStrategy.Overwrite },
     );
   } else {
@@ -84,6 +84,13 @@ export async function sharedKernelGenerator(
     tree.delete(`${utilsRoot}/src/lib/shared-utils.ts`);
     tree.delete(`${utilsRoot}/src/lib/shared-utils.spec.ts`);
     tree.write(`${utilsRoot}/src/index.ts`, '');
+    generateFiles(
+      tree,
+      resolve(__dirname, 'files/utils'),
+      utilsRoot,
+      { prefix: options.prefix ?? '' },
+      { overwriteStrategy: OverwriteStrategy.Overwrite },
+    );
   } else {
     info(`Utils library already exists at ${utilsRoot}`);
   }
@@ -108,6 +115,13 @@ export async function sharedKernelGenerator(
     tree.delete(`${infrastructureRoot}/src/lib/shared-infrastructure.ts`);
     tree.delete(`${infrastructureRoot}/src/lib/shared-infrastructure.spec.ts`);
     tree.write(`${infrastructureRoot}/src/index.ts`, '');
+    generateFiles(
+      tree,
+      resolve(__dirname, 'files/infrastructure'),
+      infrastructureRoot,
+      { prefix: options.prefix ?? '' },
+      { overwriteStrategy: OverwriteStrategy.Overwrite },
+    );
   } else {
     info(`Infrastructure library already exists at ${infrastructureRoot}`);
   }
