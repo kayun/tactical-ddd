@@ -76,7 +76,10 @@ jobs:
         run: |
           DRY=""
           if [ "${{ inputs.dryRun }}" = "true" ]; then DRY="--dry-run"; fi
-          npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" --skip-publish $DRY --yes
+          # `--skip-publish` already declines the publish prompt; it is mutually
+          # exclusive with `--yes`, so don't pass both here (publish happens in
+          # its own step below).
+          npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" --skip-publish $DRY
 
       - name: Push release commit and tag
         if: ${{ inputs.dryRun == false }}
