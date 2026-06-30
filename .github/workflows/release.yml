@@ -1,26 +1,35 @@
 name: Release
 
-# Manual, deliberate releases: pick a version bump and run it from the Actions
-# tab. `nx release` versions every publishable package, writes changelogs, tags,
-# and publishes to npm (config lives in nx.json `release`).
+# One-button release: `nx release` versions every publishable package, writes
+# changelogs, commits, **tags**, and publishes — all driven by nx, no manual
+# tagging. Run it from the Actions tab.
 #
-# Publishing uses npm Trusted Publishing (OIDC) — no npm token. Each package has
-# a Trusted Publisher on npmjs.com pointing at this repo + workflow, and npm
-# mints a short-lived credential from the GitHub OIDC identity at publish time
-# (which also produces provenance automatically).
+# Pushing the version commit + tag to a protected `main` needs a privileged
+# identity, so the job checks out with a fine-grained PAT whose owner is on the
+# branch ruleset's bypass list (see SETUP below). Publishing itself uses npm
+# Trusted Publishing (OIDC) — no npm token.
+#
+# SETUP (one-time):
+#   1. Create a fine-grained Personal Access Token scoped to this repo with
+#      "Contents: read & write", and store it in the `RELEASE_TOKEN` secret.
+#   2. In the branch ruleset protecting `main`, add that token's owner to
+#      "Allow specified actors to bypass required pull requests".
+#   3. Register a Trusted Publisher (GitHub Actions → this repo → release.yml)
+#      for each published package on npmjs.com.
+#   NB: fine-grained PATs expire (max 1 year) — rotate `RELEASE_TOKEN` before then.
 on:
   workflow_dispatch:
     inputs:
       specifier:
-        description: 'Version bump (patch | minor | major | prerelease | <explicit version>)'
+        description: 'Version bump (patch | minor | major | prerelease | <explicit version>). Note: under 0.x, "major" -> 0.(x+1).0, "minor"/"patch" -> patch.'
         type: string
-        default: prerelease
+        default: patch
       preid:
         description: 'Prerelease identifier (only used for pre* specifiers)'
         type: string
         default: alpha
       dryRun:
-        description: 'Dry run — compute and print the release without publishing or pushing'
+        description: 'Dry run — compute the release without pushing or publishing'
         type: boolean
         default: true
 
@@ -29,7 +38,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # commit the version bump + push the release tag
+  contents: read
   id-token: write # OIDC trusted publishing to npm (+ provenance)
 
 jobs:
@@ -38,8 +47,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history + tags so nx can derive the previous version/changelog.
           fetch-depth: 0
+          # PAT whose owner can bypass branch protection, so the release commit
+          # and tag can be pushed straight to the protected `main`.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -59,14 +70,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Run nx release
+      # Version + changelog + commit + tag (nx does the tagging). No publish yet
+      # so we can push to main first — if the push is rejected, nothing ships.
+      - name: Version, changelog and tag
         run: |
           DRY=""
           if [ "${{ inputs.dryRun }}" = "true" ]; then DRY="--dry-run"; fi
-          npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" $DRY --yes
-        # No NODE_AUTH_TOKEN: npm authenticates via OIDC trusted publishing using
-        # the `id-token: write` permission above.
+          npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" --skip-publish $DRY --yes
 
       - name: Push release commit and tag
         if: ${{ inputs.dryRun == false }}
         run: git push --follow-tags origin HEAD
+
+      - name: Publish to npm
+        run: |
+          DRY=""
+          if [ "${{ inputs.dryRun }}" = "true" ]; then DRY="--dry-run"; fi
+          npx nx release publish $DRY --yes
+        # No NODE_AUTH_TOKEN: npm authenticates via OIDC trusted publishing using
+        # the `id-token: write` permission above.
