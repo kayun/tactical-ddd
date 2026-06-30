@@ -3,6 +3,11 @@ name: Release
 # Manual, deliberate releases: pick a version bump and run it from the Actions
 # tab. `nx release` versions every publishable package, writes changelogs, tags,
 # and publishes to npm (config lives in nx.json `release`).
+#
+# Publishing uses npm Trusted Publishing (OIDC) — no npm token. Each package has
+# a Trusted Publisher on npmjs.com pointing at this repo + workflow, and npm
+# mints a short-lived credential from the GitHub OIDC identity at publish time
+# (which also produces provenance automatically).
 on:
   workflow_dispatch:
     inputs:
@@ -25,7 +30,7 @@ concurrency:
 
 permissions:
   contents: write # commit the version bump + push the release tag
-  id-token: write # npm provenance
+  id-token: write # OIDC trusted publishing to npm (+ provenance)
 
 jobs:
   release:
@@ -44,6 +49,11 @@ jobs:
 
       - run: npm ci
 
+      # Trusted Publishing (OIDC token exchange) requires npm >= 11.5.1; the npm
+      # bundled with Node 22 is older, so upgrade it before publishing.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
       - name: Configure git author
         run: |
           git config user.name "github-actions[bot]"
@@ -54,11 +64,8 @@ jobs:
           DRY=""
           if [ "${{ inputs.dryRun }}" = "true" ]; then DRY="--dry-run"; fi
           npx nx release "${{ inputs.specifier }}" --preid="${{ inputs.preid }}" $DRY --yes
-        env:
-          # setup-node wrote an .npmrc that reads this for `npm publish`.
-          NODE_AUTH_TOKEN: ${{ secrets.TACTICAL_DDD_NPM_TOKEN }}
-          # Attach build provenance to the published packages.
-          NPM_CONFIG_PROVENANCE: 'true'
+        # No NODE_AUTH_TOKEN: npm authenticates via OIDC trusted publishing using
+        # the `id-token: write` permission above.
 
       - name: Push release commit and tag
         if: ${{ inputs.dryRun == false }}
