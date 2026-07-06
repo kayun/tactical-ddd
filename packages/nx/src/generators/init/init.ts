@@ -16,7 +16,10 @@ import { resolve } from 'path';
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
 import { applyDepConstraints } from '../../utils/eslint-module-boundaries';
-import { reactRuntimeDependencies } from '../../utils/react-runtime';
+import {
+  reactNativeRuntimeDependencies,
+  reactRuntimeDependencies,
+} from '../../utils/react-runtime';
 import sharedKernelGenerator from '../shared-kernel/shared-kernel';
 
 /**
@@ -35,11 +38,12 @@ const PREFIXED_GENERATORS = ['shared-kernel', 'domain'] as const;
 /**
  * Built-in Nx library generators that should inherit the workspace-wide
  * build/lint/test defaults so hand-rolled libraries match the conventions.
- * `@nx/js:library` always applies; `@nx/react:library` is layered on only for
- * the `react` preset (see {@link setGeneratorDefaults}).
+ * `@nx/js:library` always applies; the framework library generator is layered
+ * on only for the matching preset (see {@link setGeneratorDefaults}).
  */
 const BASE_LIBRARY_GENERATORS = ['@nx/js:library'] as const;
 const REACT_LIBRARY_GENERATORS = ['@nx/react:library'] as const;
+const REACT_NATIVE_LIBRARY_GENERATORS = ['@nx/react-native:library'] as const;
 
 /** The Tactical DDD React runtime bindings package. */
 const TACTICAL_DDD_REACT = '@tactical-ddd/react';
@@ -166,6 +170,16 @@ function ensureGeneratorDependencies(
     // it yet; if it already has `react` (or `react-dom`), defer to whatever
     // versions it pinned rather than re-resolving and risking a peer conflict.
     Object.assign(dependencies, reactRuntimeDependencies(tree));
+  } else if (options.preset === 'react-native') {
+    // Dev-time: powers the `@nx/react-native:library` defaults and generators.
+    devDependencies['@nx/react-native'] = NX_VERSION;
+    // Run-time: our React bindings always ship in the app.
+    dependencies[TACTICAL_DDD_REACT] = tacticalDddReactVersion();
+
+    // Run-time: `react` + `react-native` (no `react-dom` — native views, not
+    // the DOM), added only when the workspace manages neither `react` nor
+    // `react-native` yet, for the same skew/`ERESOLVE` reasons as above.
+    Object.assign(dependencies, reactNativeRuntimeDependencies(tree));
   }
 
   return addDependenciesToPackageJson(tree, dependencies, devDependencies);
@@ -188,7 +202,10 @@ function ensureGeneratorDependencies(
  *     // 2. The built-in library generators — so hand-rolled libs match conventions.
  *     "@nx/js:library":    { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" },
  *     // `@nx/react:library` is added only under the `react` preset.
- *     "@nx/react:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" }
+ *     "@nx/react:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" },
+ *     // `@nx/react-native:library` is added only under the `react-native` preset
+ *     // (no `bundler` — Metro is fixed; `unitTestRunner` is `jest` or `none`).
+ *     "@nx/react-native:library": { "linter": "eslint", "unitTestRunner": "jest" }
  *   }
  */
 function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
@@ -216,26 +233,37 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
   }
 
   // 2. The built-in library generators get the same workspace-wide build/lint/
-  // test defaults, so a plain `nx g @nx/js:library` (or `@nx/react:library`)
-  // produces a library that already matches the Tactical DDD conventions.
-  // `@nx/react:library` defaults are written only under the `react` preset, so
-  // we don't advertise React tooling a non-React workspace never installed.
+  // test defaults, so a plain `nx g @nx/js:library` (or the framework library
+  // generator) produces a library that already matches the Tactical DDD
+  // conventions. The framework generator's defaults are written only under its
+  // matching preset, so we don't advertise tooling a workspace never installed.
   const libraryDefaults: Record<string, unknown> = {
     bundler: options.bundler ?? 'none',
     linter: options.linter,
     unitTestRunner: options.unitTestRunner,
   };
 
-  const libraryGenerators =
-    options.preset === 'react'
-      ? [...BASE_LIBRARY_GENERATORS, ...REACT_LIBRARY_GENERATORS]
-      : BASE_LIBRARY_GENERATORS;
-
-  for (const generator of libraryGenerators) {
+  for (const generator of [
+    ...BASE_LIBRARY_GENERATORS,
+    ...(options.preset === 'react' ? REACT_LIBRARY_GENERATORS : []),
+  ]) {
     generators[generator] = {
       ...generators[generator],
       ...libraryDefaults,
     };
+  }
+
+  // `@nx/react-native:library` has no `bundler` option (Metro is fixed) and
+  // supports only `jest`/`none` for `unitTestRunner`, so it gets its own,
+  // narrower defaults rather than the shared `libraryDefaults`.
+  if (options.preset === 'react-native') {
+    for (const generator of REACT_NATIVE_LIBRARY_GENERATORS) {
+      generators[generator] = {
+        ...generators[generator],
+        linter: options.linter,
+        unitTestRunner: options.unitTestRunner === 'jest' ? 'jest' : 'none',
+      };
+    }
   }
 
   updateNxJson(tree, nxJson);

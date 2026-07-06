@@ -517,5 +517,101 @@ describe('init generator', () => {
         expect(deps()).not.toHaveProperty('@tactical-ddd/react');
       });
     });
+
+    describe('react-native preset', () => {
+      it('adds @nx/react-native as a devDependency', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        expect(devDeps()).toHaveProperty('@nx/react-native');
+      });
+
+      it('adds react and react-native as production dependencies', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        expect(deps()).toEqual(
+          expect.objectContaining({
+            react: expect.any(String),
+            'react-native': expect.any(String),
+          }),
+        );
+      });
+
+      it('never adds react-dom — React Native renders to native views', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        expect(deps()).not.toHaveProperty('react-dom');
+      });
+
+      it('adds @tactical-ddd/react as production dependencies', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        expect(deps()).toHaveProperty('@tactical-ddd/react');
+      });
+
+      it('does not add the runtime when the workspace already has react-native', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.dependencies = {
+            ...json.dependencies,
+            'react-native': '0.84.0',
+          };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        expect(deps()['react-native']).toBe('0.84.0');
+        expect(deps()).not.toHaveProperty('react');
+      });
+
+      it('registers the @nx/react-native:library defaults (no bundler)', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'react-native' });
+
+        const generators = readNxJson(tree)?.generators as Record<
+          string,
+          Record<string, unknown>
+        >;
+
+        expect(generators['@nx/react-native:library']).toMatchObject({
+          linter: 'eslint',
+          unitTestRunner: 'jest',
+        });
+        // Metro is the fixed bundler — no `bundler` default is advertised.
+        expect(generators['@nx/react-native:library']).not.toHaveProperty(
+          'bundler',
+        );
+      });
+
+      it('falls back to unitTestRunner: none for the RN library when vitest is chosen', async () => {
+        // @nx/react-native:library supports only jest/none, so a vitest choice
+        // is coerced rather than written through as an invalid default.
+        await initGenerator(tree, {
+          ...baseOptions,
+          preset: 'react-native',
+          unitTestRunner: 'vitest',
+        });
+
+        const generators = readNxJson(tree)?.generators as Record<
+          string,
+          Record<string, unknown>
+        >;
+
+        expect(generators['@nx/react-native:library'].unitTestRunner).toBe(
+          'none',
+        );
+      });
+
+      it('does not pull in React Native tooling without the react-native preset', async () => {
+        await initGenerator(tree, baseOptions);
+
+        expect(devDeps()).not.toHaveProperty('@nx/react-native');
+        expect(deps()).not.toHaveProperty('react-native');
+
+        const generators = readNxJson(tree)?.generators as Record<
+          string,
+          Record<string, unknown>
+        >;
+        expect(generators['@nx/react-native:library']).toBeUndefined();
+      });
+    });
   });
 });

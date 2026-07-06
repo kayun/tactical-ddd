@@ -1,5 +1,10 @@
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
-import { Tree, readJson, readProjectConfiguration } from '@nx/devkit';
+import {
+  Tree,
+  readJson,
+  readProjectConfiguration,
+  updateJson,
+} from '@nx/devkit';
 
 import { domainGenerator } from './domain';
 import { DomainGeneratorSchema } from './schema';
@@ -14,6 +19,20 @@ jest.mock('prettier', () => ({
   resolveConfig: async () => ({}),
   getFileInfo: async () => ({ ignored: false, inferredParser: 'typescript' }),
   format: async (content: string) => content,
+}));
+
+// Under the `react-native` preset the domain generator delegates ui/features to
+// `@nx/react-native`'s library generator (loaded on demand via `ensurePackage`).
+// Running the real generator in-memory is heavy and environment-sensitive, so
+// stub it and assert on *how* the domain generator drives it — mirroring how the
+// React web path is left to react-runtime.spec + the e2e suite. The stub returns
+// a no-op install callback, matching the real generator's `GeneratorCallback`.
+const mockReactNativeLibraryGenerator = jest.fn(
+  async (_tree: Tree, _options: unknown) => () => undefined as void,
+);
+jest.mock('@nx/react-native', () => ({
+  __esModule: true,
+  reactNativeLibraryGenerator: mockReactNativeLibraryGenerator,
 }));
 
 const ESLINT_CONFIG = 'eslint.config.mjs';
@@ -48,6 +67,7 @@ describe('domain generator', () => {
     linter: 'eslint',
     unitTestRunner: 'jest',
     bundler: 'tsc',
+    prefix: '',
   };
 
   beforeEach(() => {
@@ -271,7 +291,107 @@ describe('domain generator', () => {
     });
   });
 
-  // The React-runtime policy itself is unit-tested directly against
+  describe('react-native preset', () => {
+    const rnOptions: DomainGeneratorSchema = {
+      ...baseOptions,
+      preset: 'react-native',
+      layers: ['ui', 'features'],
+    };
+
+    beforeEach(() => {
+      mockReactNativeLibraryGenerator.mockClear();
+    });
+
+    it('generates ui and features via @nx/react-native, not @nx/js', async () => {
+      await domainGenerator(tree, rnOptions);
+
+      expect(mockReactNativeLibraryGenerator).toHaveBeenCalledTimes(2);
+      const roots = mockReactNativeLibraryGenerator.mock.calls.map(
+        ([, opts]) => (opts as { directory: string }).directory,
+      );
+      expect(roots).toEqual(
+        expect.arrayContaining(['libs/orders/ui', 'libs/orders/features']),
+      );
+    });
+
+    it('does not fall back to the @nx/js DOM path for a react-native layer', async () => {
+      await domainGenerator(tree, { ...rnOptions, layers: ['ui'] });
+
+      // @nx/js was never used for the ui layer, so no tsconfig.lib.json exists to
+      // carry a DOM lib entry (React Native renders to native views, not the DOM).
+      expect(tree.exists('libs/orders/ui/tsconfig.lib.json')).toBe(false);
+    });
+
+    it('delegates with skipPackageJson, addPlugin and the layer tags', async () => {
+      await domainGenerator(tree, { ...rnOptions, layers: ['ui'] });
+
+      expect(mockReactNativeLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({
+          directory: 'libs/orders/ui',
+          addPlugin: true,
+          skipPackageJson: true,
+          linter: 'eslint',
+          tags: expect.stringContaining(LibraryType.Ui),
+        }),
+      );
+    });
+
+    it('passes jest straight through as the test runner', async () => {
+      await domainGenerator(tree, {
+        ...rnOptions,
+        layers: ['ui'],
+        unitTestRunner: 'jest',
+      });
+
+      expect(mockReactNativeLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ unitTestRunner: 'jest' }),
+      );
+    });
+
+    it('coerces a non-jest runner to none — RN supports only jest/none', async () => {
+      await domainGenerator(tree, {
+        ...rnOptions,
+        layers: ['ui'],
+        unitTestRunner: 'vitest',
+      });
+
+      expect(mockReactNativeLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ unitTestRunner: 'none' }),
+      );
+    });
+
+    it('adds the react and react-native runtime, never react-dom', async () => {
+      await domainGenerator(tree, { ...rnOptions, layers: ['ui'] });
+
+      const deps = readJson(tree, 'package.json').dependencies ?? {};
+      expect(deps).toHaveProperty('react');
+      expect(deps).toHaveProperty('react-native');
+      expect(deps).not.toHaveProperty('react-dom');
+    });
+
+    it('defers to a react-native runtime the workspace already manages', async () => {
+      updateJson(tree, 'package.json', (json) => {
+        json.dependencies = {
+          ...json.dependencies,
+          'react-native': '0.84.0',
+        };
+        return json;
+      });
+
+      await domainGenerator(tree, { ...rnOptions, layers: ['ui'] });
+
+      const deps = readJson(tree, 'package.json').dependencies ?? {};
+      // The existing pin is left untouched and the missing half is not added on
+      // top of it — we defer entirely to what the workspace already manages.
+      expect(deps['react-native']).toBe('0.84.0');
+      expect(deps).not.toHaveProperty('react');
+    });
+  });
+
+  // The React (web) runtime policy is unit-tested directly against
   // `reactRuntimeDependencies` (see react-runtime.spec.ts) — that avoids running
   // the heavy `@nx/react` generator in-memory here — and the end-to-end wiring
   // (skipPackageJson + the deferral) is covered by the e2e suite.

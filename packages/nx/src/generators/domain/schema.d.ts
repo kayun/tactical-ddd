@@ -5,7 +5,7 @@ export interface DomainGeneratorSchema {
   name: string;
   layers: string[];
   prefix: string;
-  preset?: string;
+  preset?: 'none' | 'react' | 'react-native';
   linter: 'eslint' | 'none';
   unitTestRunner?: 'jest' | 'vitest' | 'none';
   bundler?: Bundler;

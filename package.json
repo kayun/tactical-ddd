@@ -39,6 +39,7 @@
     "@nx/js": "23.0.0",
     "@nx/plugin": "^23.0.0",
     "@nx/react": "23.0.0",
+    "@nx/react-native": "23.0.0",
     "@nx/vite": "23.0.0",
     "@nx/web": "23.0.0",
     "@swc-node/register": "1.11.1",

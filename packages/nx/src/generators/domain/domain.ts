@@ -24,7 +24,10 @@ import {
 import { warning } from '../../utils/logger';
 import { LibraryScope, LibraryType, ModuleFormat } from '../../types';
 import { resolveLibraryModuleFormat } from '../../utils/resolve-module-format';
-import { reactRuntimeDependencies } from '../../utils/react-runtime';
+import {
+  reactNativeRuntimeDependencies,
+  reactRuntimeDependencies,
+} from '../../utils/react-runtime';
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -169,17 +172,23 @@ export async function domainGenerator(
     );
   }
 
-  // A React layer (ui/features) needs the React runtime present. Add it
-  // centrally — both halves at one specifier, and only when the workspace
-  // manages neither yet — mirroring the `init` generator; `@nx/react` was told
-  // to skip it above so it can't introduce a skewed `react`/`react-dom`.
-  if (
-    options.preset === 'react' &&
-    (options.layers.includes('ui') || options.layers.includes('features'))
-  ) {
-    tasks.push(
-      addDependenciesToPackageJson(tree, reactRuntimeDependencies(tree), {}),
-    );
+  // A framework layer (ui/features) needs its runtime present. Add it centrally
+  // — every half at one specifier, and only when the workspace manages none yet
+  // — mirroring the `init` generator; the delegated library generator was told
+  // to skip it above so it can't introduce a skewed runtime. React web pulls in
+  // `react`/`react-dom`; React Native pulls in `react`/`react-native` (no
+  // `react-dom` — it renders to native views, not the DOM).
+  if (options.layers.includes('ui') || options.layers.includes('features')) {
+    const runtime =
+      options.preset === 'react'
+        ? reactRuntimeDependencies(tree)
+        : options.preset === 'react-native'
+          ? reactNativeRuntimeDependencies(tree)
+          : {};
+
+    if (Object.keys(runtime).length > 0) {
+      tasks.push(addDependenciesToPackageJson(tree, runtime, {}));
+    }
   }
 
   // Silo this domain: per-domain constraints are what actually prevent
@@ -216,14 +225,18 @@ function layerName(options: DomainGeneratorSchema, layer: string): string {
 
 /**
  * Generates a presentational/feature layer library and returns its install
- * callback. Under the `react` preset it uses `@nx/react`'s generator (loaded
- * lazily via `ensurePackage` so the domain generator never hard-depends on
- * `@nx/react` in non-React workspaces); under `none` it uses `@nx/js` and adds
- * the DOM lib to the library `tsconfig` so browser globals type-check.
+ * callback. All framework generators are loaded lazily via `ensurePackage` so
+ * the domain generator never hard-depends on a framework plugin in a workspace
+ * that doesn't use it.
  *
- * Both pass `addPlugin: true` so the library gets inferred tasks (Project
- * Crystal) rather than the deprecated executor targets the generators' public
- * wrappers default to.
+ * - `react`: `@nx/react`'s generator (web — renders to the DOM).
+ * - `react-native`: `@nx/react-native`'s generator (native views, no DOM).
+ * - `none`: `@nx/js` plus the DOM lib in the library `tsconfig` so browser
+ *   globals type-check.
+ *
+ * Every path passes `addPlugin: true` so the library gets inferred tasks
+ * (Project Crystal) rather than the deprecated executor targets the generators'
+ * public wrappers default to.
  */
 async function generateLayerLibrary(
   tree: Tree,
@@ -250,6 +263,33 @@ async function generateLayerLibrary(
       linter: options.linter,
       style: 'none',
       tags: layer.tags,
+      skipPackageJson: true,
+    });
+  }
+
+  if (options.preset === 'react-native') {
+    const { reactNativeLibraryGenerator } = ensurePackage<
+      typeof import('@nx/react-native')
+    >('@nx/react-native', NX_VERSION);
+
+    // `skipPackageJson` for the same reason as the React web path: the runtime
+    // (`react`/`react-native`) is added centrally and skew-free via
+    // `reactNativeRuntimeDependencies`, never at a floating range here.
+    //
+    // `@nx/react-native:library` supports only `jest`/`none` (not `vitest`), so
+    // anything that isn't `jest` falls back to `none` rather than being passed
+    // through and rejected. Unlike the React web generator it has no `bundler`
+    // (Metro is fixed) or `style` option. `skipFormat` is left to the shared
+    // `formatFiles` at the end of the generator.
+    return await reactNativeLibraryGenerator(tree, {
+      name: layer.name,
+      directory: layer.root,
+      addPlugin: true,
+      unitTestRunner: options.unitTestRunner === 'jest' ? 'jest' : 'none',
+      linter: options.linter,
+      tags: layer.tags,
+      skipTsConfig: false,
+      skipFormat: false,
       skipPackageJson: true,
     });
   }
