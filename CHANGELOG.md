@@ -1,3 +1,13 @@
+## 0.1.2 (2026-07-06)
+
+### 🚀 Features
+
+- add React Native preset support for `init` and `domain` generators ([babeb41](https://github.com/kayun/tactical-ddd/commit/babeb41))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.1.1 (2026-06-30)
 
 This was a version bump only, there were no code changes.
