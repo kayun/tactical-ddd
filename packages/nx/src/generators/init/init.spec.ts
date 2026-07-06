@@ -72,6 +72,38 @@ describe('init generator', () => {
     );
   });
 
+  describe('AI agent guide', () => {
+    it('writes AGENTS.md at the workspace root', async () => {
+      await initGenerator(tree, baseOptions);
+
+      expect(tree.exists('AGENTS.md')).toBe(true);
+    });
+
+    it('interpolates the prefix into the guide examples', async () => {
+      await initGenerator(tree, baseOptions);
+
+      const guide = tree.read('AGENTS.md', 'utf-8') ?? '';
+      expect(guide).toContain('@my-org/auth-core');
+      expect(guide).toContain('@nx/enforce-module-boundaries');
+    });
+
+    it('uses unprefixed package names when no prefix is given', async () => {
+      await initGenerator(tree, { ...baseOptions, prefix: '' });
+
+      const guide = tree.read('AGENTS.md', 'utf-8') ?? '';
+      expect(guide).toContain('auth-core');
+      expect(guide).not.toContain('@my-org/');
+    });
+
+    it('does not overwrite an existing guide', async () => {
+      tree.write('AGENTS.md', 'CUSTOM');
+
+      await initGenerator(tree, baseOptions);
+
+      expect(tree.read('AGENTS.md', 'utf-8')).toBe('CUSTOM');
+    });
+  });
+
   describe('generator defaults', () => {
     it('registers the prefix as a default for the shared-kernel generator', async () => {
       await initGenerator(tree, baseOptions);

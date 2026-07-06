@@ -1,7 +1,9 @@
 import {
   addDependenciesToPackageJson,
   formatFiles,
+  generateFiles,
   NX_VERSION,
+  OverwriteStrategy,
   readNxJson,
   runTasksInSerial,
   updateNxJson,
@@ -9,6 +11,7 @@ import {
   type NxJsonConfiguration,
   type Tree,
 } from '@nx/devkit';
+import { resolve } from 'path';
 
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
@@ -84,6 +87,17 @@ export async function initGenerator(
   // the architecture is enforced at lint time. Skipped (with a warning) when
   // the workspace has no ESLint config — e.g. `linter: none`.
   applyDepConstraints(tree, DEP_CONSTRAINTS);
+
+  // Drop an architecture guide for AI agents at the workspace root so they place
+  // files/entities by the same boundaries lint enforces. `KeepExisting` so a
+  // re-run never clobbers a guide the user has customized.
+  generateFiles(
+    tree,
+    resolve(__dirname, 'files'),
+    '.',
+    { prefix: options.prefix ?? '' },
+    { overwriteStrategy: OverwriteStrategy.KeepExisting },
+  );
 
   await formatFiles(tree);
 
