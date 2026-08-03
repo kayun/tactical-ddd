@@ -59,6 +59,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           # The lcov files Jest writes per project (Codecov auto-discovers them).
-          files: ./packages/nx/test-output/jest/coverage/lcov.info,./packages/react/test-output/jest/coverage/lcov.info
+          files: ./packages/nx/test-output/jest/coverage/lcov.info,./packages/react/test-output/jest/coverage/lcov.info,./packages/core/test-output/jest/coverage/lcov.info
           # Don't fail the build if the upload itself hiccups.
           fail_ci_if_error: false
