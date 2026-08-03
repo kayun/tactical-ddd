@@ -1,0 +1,90 @@
+{
+  "name": "@tactical-ddd/core",
+  "version": "0.1.1",
+  "license": "MIT",
+  "keywords": [
+    "ddd",
+    "domain-driven-design",
+    "clean-architecture",
+    "tactical-ddd",
+    "entity",
+    "value-object",
+    "aggregate-root",
+    "use-case",
+    "domain-error",
+    "framework-agnostic",
+    "architecture",
+    "typescript"
+  ],
+  "author": {
+    "name": "Artyom Kayun",
+    "email": "kayun.artem@gmail.com",
+    "url": "https://github.com/kayun"
+  },
+  "repository": {
+    "url": "https://github.com/kayun/tactical-ddd/tree/main/packages/core"
+  },
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "**/*",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "sourceRoot": "packages/core/src",
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "compile"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/packages/core"
+        ],
+        "options": {
+          "command": "node tools/scripts/sync-publish-package-json.mjs packages/core dist/packages/core"
+        }
+      },
+      "compile": {
+        "executor": "@nx/js:swc",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "options": {
+          "outputPath": "dist/packages/core",
+          "main": "packages/core/src/index.ts",
+          "tsConfig": "packages/core/tsconfig.lib.json",
+          "skipTypeCheck": true,
+          "stripLeadingPaths": true,
+          "assets": [
+            {
+              "input": "./packages/core",
+              "glob": "LICENSE",
+              "output": "."
+            },
+            {
+              "input": "./packages/core",
+              "glob": "README.md",
+              "output": "."
+            }
+          ]
+        }
+      },
+      "nx-release-publish": {
+        "options": {
+          "packageRoot": "dist/packages/core"
+        }
+      }
+    }
+  }
+}
