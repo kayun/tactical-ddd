@@ -1,3 +1,14 @@
+## 0.1.3 (2026-08-03)
+
+### 🚀 Features
+
+- **core:** initialize `@tactical-ddd/core` package with MIT license, README, and setup files ([ca02db7](https://github.com/kayun/tactical-ddd/commit/ca02db7))
+- **core:** add `UseCase` interface with documentation and export ([331d4d9](https://github.com/kayun/tactical-ddd/commit/331d4d9))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.1.2 (2026-07-06)
 
 ### 🚀 Features
