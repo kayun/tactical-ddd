@@ -1,3 +1,15 @@
+## 0.1.4 (2026-08-05)
+
+### 🚀 Features
+
+- **core:** add base `Entity` class and `EntityId` type with tests ([9dec73d](https://github.com/kayun/tactical-ddd/commit/9dec73d))
+- **core:** add base `ValueObject` class with structural equality and tests ([11b44cd](https://github.com/kayun/tactical-ddd/commit/11b44cd))
+- **core:** add `DomainError` base class and specific error types with tests ([bc92d68](https://github.com/kayun/tactical-ddd/commit/bc92d68))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.1.3 (2026-08-03)
 
 ### 🚀 Features
