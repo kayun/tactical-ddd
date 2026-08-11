@@ -18,6 +18,9 @@ violating it** (how a violation looks in a diff).
 | [TD-0005](./TD-0005-shared-kernel-stays-business-agnostic.md) | The shared kernel stays business-agnostic and split in three             | putting anything in `libs/shared/*`, or configuring an adapter         |
 | [TD-0006](./TD-0006-boundaries-enforced-by-tags.md)           | Boundaries are enforced at lint time, by two complementary rules         | editing `tags`, or disabling a boundary rule                           |
 | [TD-0007](./TD-0007-generators-own-scaffolding.md)            | Generators own scaffolding; dev-time never leaks into run-time           | creating a library or domain, or patching a generated file             |
+| [TD-0008](./TD-0008-value-and-freshness-are-one-state.md)     | Value and freshness are one state; reads split by nature                 | adding a read method to a facade, or rendering remote data             |
+| [TD-0009](./TD-0009-notifications-go-to-the-bus.md)           | Notifications go to the bus, state goes to a watch                       | adding a domain event, or a second way to learn the same thing         |
+| [TD-0010](./TD-0010-commands-return-no-data.md)               | Commands return no data — nothing, or how they went                      | giving a write a return type, or reading a command's result            |
 
 ## Status vocabulary
 
