@@ -218,3 +218,23 @@ Add files *within* the generated layers by hand, following [§7](#7-where-do-i-p
 - Put business logic in `shared/*` or runtime code in any `contracts`.
 - Import outer layers from inner ones inside `core`.
 - Edit `tags` or relax ESLint boundaries to force a forbidden import.
+
+---
+
+<!-- tactical-ddd:adr-index:start -->
+## Architecture decisions
+
+The reasoning behind the rules above — the alternatives that were rejected, and
+the signals that a rule has been broken — is recorded in
+[`docs/adr/td`](./docs/adr/td/README.md).
+
+Read the record that covers what you are about to change: what a layer may
+import, what a facade exposes, where a shared module lives, or how boundaries are
+enforced. Those files are generated from `@tactical-ddd/nx` and must not be
+edited here; refresh them with `nx g @tactical-ddd/nx:agents-context-sync`.
+
+Decisions specific to this product — which database is authoritative, how
+sessions are secured, what the sync engine guarantees — belong in `docs/adr/`
+without the `TD-` prefix, and may be revisited without touching the library.
+<!-- tactical-ddd:adr-index:end -->
+

@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "0-2-0-sync-agents-context": {
+      "version": "0.2.0-beta.0",
+      "description": "Refresh the files written for AI agents: the architecture guide, the architecture decision records shipped with this plugin, and the pointer between them. Skipped in workspaces that have no agent context yet.",
+      "factory": "./src/migrations/update-0-2-0/sync-agents-context"
+    }
+  }
+}
