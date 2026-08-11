@@ -1,21 +1,79 @@
 {
   "name": "@tactical-ddd/vue",
-  "version": "0.0.1",
+  "version": "0.1.5",
+  "license": "MIT",
+  "keywords": [
+    "vue",
+    "vue3",
+    "composables",
+    "ddd",
+    "domain-driven-design",
+    "clean-architecture",
+    "tactical-ddd",
+    "observable",
+    "subscribable",
+    "streams",
+    "shared-kernel",
+    "architecture",
+    "typescript"
+  ],
+  "author": {
+    "name": "Artyom Kayun",
+    "email": "kayun.artem@gmail.com",
+    "url": "https://github.com/kayun"
+  },
+  "repository": {
+    "url": "https://github.com/kayun/tactical-ddd/tree/main/packages/vue"
+  },
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "@tactical-ddd/source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
     }
   },
   "files": [
-    "dist",
+    "**/*",
     "!**/*.tsbuildinfo"
-  ]
+  ],
+  "peerDependencies": {
+    "@tactical-ddd/core": "^0.1.5",
+    "vue": "^3.3.0"
+  },
+  "nx": {
+    "sourceRoot": "packages/vue/src",
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "compile"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/packages/vue"
+        ],
+        "options": {
+          "command": "node tools/scripts/sync-publish-package-json.mjs packages/vue dist/packages/vue"
+        }
+      },
+      "compile": {
+        "executor": "@nx/vite:build",
+        "outputs": [
+          "{workspaceRoot}/dist/packages/vue"
+        ],
+        "options": {
+          "outputPath": "dist/packages/vue"
+        }
+      },
+      "nx-release-publish": {
+        "options": {
+          "packageRoot": "dist/packages/vue"
+        }
+      }
+    }
+  }
 }
