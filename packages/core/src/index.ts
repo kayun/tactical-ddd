@@ -5,4 +5,5 @@ export * from './lib/domain-error.js';
 export * from './lib/unsubscribe.js';
 export * from './lib/subscribable.js';
 export * from './lib/loadable.js';
+export * from './lib/repository.js';
 export * from './lib/facade.js';
