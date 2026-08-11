@@ -1,4 +1,4 @@
-import type { Remote } from './remote.js';
+import type { Loadable } from './loadable.js';
 import type { Subscribable } from './subscribable.js';
 
 /**
@@ -12,7 +12,7 @@ export type Query<TResult> = Promise<TResult>;
  * subscriber gets what is known right away, which is what separates a watch
  * from a notification on an event bus.
  */
-export type Watch<TValue> = Subscribable<Remote<TValue>>;
+export type Watch<TValue> = Subscribable<Loadable<TValue>>;
 
 /**
  * Detail an outcome may carry: primitives only. An entity or a DTO here would
@@ -28,8 +28,16 @@ type OutcomeDetail = Readonly<
  * that is read back through a query or a watch, from the one source of truth.
  *
  * ```ts
- * export type PinVerified = Outcome<'verified'>;
- * export type PinRejected = Outcome<'rejected', { attemptsRemaining: number }>;
+ * export enum PinAttempt {
+ *   Verified = 'verified',
+ *   Rejected = 'rejected',
+ * }
+ *
+ * export type PinVerified = Outcome<PinAttempt.Verified>;
+ * export type PinRejected = Outcome<
+ *   PinAttempt.Rejected,
+ *   { attemptsRemaining: number }
+ * >;
  * ```
  */
 export type Outcome<

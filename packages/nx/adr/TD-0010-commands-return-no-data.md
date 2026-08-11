@@ -47,8 +47,13 @@ export type Command<TOutcome extends AnyOutcome | void = void> =
 rather than by review:
 
 ```ts
-type Verified = Outcome<'verified'>;
-type Rejected = Outcome<'rejected', { attemptsRemaining: number }>;
+enum VerifyStatus {
+  Verified = 'verified',
+  Rejected = 'rejected',
+}
+
+type Verified = Outcome<VerifyStatus.Verified>;
+type Rejected = Outcome<VerifyStatus.Rejected, { attemptsRemaining: number }>;
 
 export type PinFacade = Facade<{
   commands: {
@@ -66,7 +71,7 @@ type Bad = Command<Beneficiary>;
 type AlsoBad = Command<string>;
 
 // @ts-expect-error — nor to data wrapped in an outcome
-type StillBad = Outcome<'created', { created: Beneficiary }>;
+type StillBad = Outcome<VerifyStatus.Verified, { created: Beneficiary }>;
 ```
 
 What the command changed is read back through a query or a watch, from the one
@@ -97,8 +102,9 @@ source of truth.
 - A command that only changes state is `Command` — `Promise<void>`. This is the
   default and should stay the common case.
 - An outcome is a tag plus primitive detail, declared in `contracts` next to the
-  facade. Statuses are string literals or a string enum, so the caller can
-  `switch` exhaustively.
+  facade. Statuses are members of a string enum, so the caller can `switch`
+  exhaustively and a typo is a compile error rather than a branch that never
+  runs.
 - A refusal that breaks an invariant is still thrown, as a `DomainError`.
   `Outcome` is for results the caller is expected to branch on.
 - **Every command's effect needs a read that shows it.** If a screen must react

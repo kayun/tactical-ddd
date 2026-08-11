@@ -8,7 +8,7 @@ import type {
   Watch,
   WatchesOf,
 } from './facade.js';
-import type { Remote } from './remote.js';
+import { type Loadable, LoadStatus } from './loadable.js';
 import type { Observer, Subscription } from './subscribable.js';
 
 type Beneficiary = Readonly<{ id: string; name: string }>;
@@ -30,11 +30,11 @@ type BeneficiariesFacade = Facade<BeneficiariesSpec>;
 /** A one-value stream, enough to exercise the shape without pulling in rxjs. */
 const readyOnce = <T>(value: T): Watch<T> => ({
   subscribe: (
-    first: Observer<Remote<T>> | ((state: Remote<T>) => void),
+    first: Observer<Loadable<T>> | ((state: Loadable<T>) => void),
   ): Subscription => {
     const next = typeof first === 'function' ? first : first.next;
 
-    next({ status: 'ready', value, stale: false });
+    next({ status: LoadStatus.Ready, value, stale: false });
 
     return { unsubscribe: () => undefined };
   },
@@ -72,13 +72,15 @@ describe('Facade', () => {
   });
 
   it('publishes watches as streams of state', () => {
-    const states: Remote<Beneficiary[]>[] = [];
+    const states: Loadable<Beneficiary[]>[] = [];
 
     const subscription = makeFacade()
       .observeAll()
       .subscribe((state) => states.push(state));
 
-    expect(states).toEqual([{ status: 'ready', value: [alice], stale: false }]);
+    expect(states).toEqual([
+      { status: LoadStatus.Ready, value: [alice], stale: false },
+    ]);
     expect(() => subscription.unsubscribe()).not.toThrow();
   });
 
@@ -121,8 +123,13 @@ describe('FacadeSpec', () => {
   });
 });
 
-type Renamed = Outcome<'renamed'>;
-type Rejected = Outcome<'rejected', { attemptsRemaining: number }>;
+enum RenameStatus {
+  Renamed = 'renamed',
+  Rejected = 'rejected',
+}
+
+type Renamed = Outcome<RenameStatus.Renamed>;
+type Rejected = Outcome<RenameStatus.Rejected, { attemptsRemaining: number }>;
 
 type RenameSpec = Readonly<{
   commands: { rename(id: string, name: string): Command<Renamed | Rejected> };
@@ -134,14 +141,16 @@ describe('Outcome', () => {
       rename: (_id, name) =>
         Promise.resolve(
           name.length > 0
-            ? { status: 'renamed' }
-            : { status: 'rejected', attemptsRemaining: 2 },
+            ? { status: RenameStatus.Renamed }
+            : { status: RenameStatus.Rejected, attemptsRemaining: 2 },
         ),
     };
 
-    expect(await facade.rename('1', 'Alicia')).toEqual({ status: 'renamed' });
+    expect(await facade.rename('1', 'Alicia')).toEqual({
+      status: RenameStatus.Renamed,
+    });
     expect(await facade.rename('1', '')).toEqual({
-      status: 'rejected',
+      status: RenameStatus.Rejected,
       attemptsRemaining: 2,
     });
   });
@@ -156,8 +165,11 @@ export type ListFromCommand = Command<Beneficiary[]>;
 // @ts-expect-error — nor to a bare value, however small (a token, an id)
 export type ScalarFromCommand = Command<string>;
 
-// @ts-expect-error — wrapping domain data in an outcome does not launder it
-export type EntityInOutcome = Outcome<'created', { created: Beneficiary }>;
+export type EntityInOutcome = Outcome<
+  RenameStatus.Renamed,
+  // @ts-expect-error — wrapping domain data in an outcome does not launder it
+  { created: Beneficiary }
+>;
 
 // @ts-expect-error — a promise-returning write does not belong in `watches`
 export type CommandInWatches = Facade<{ watches: { save(): Command } }>;

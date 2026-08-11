@@ -39,7 +39,7 @@ A facade declares its methods in three groups, using `Facade` from
 
 ```ts
 export type Query<TResult> = Promise<TResult>; // the value as of now; rejects on failure
-export type Watch<TValue> = Subscribable<Remote<TValue>>; // and every later one
+export type Watch<TValue> = Subscribable<Loadable<TValue>>; // and every later one
 export type Command<TOutcome extends AnyOutcome | void = void> =
   Promise<TOutcome>; // a write, resolving to nothing or to how it went
 ```
@@ -48,14 +48,14 @@ Data that is rendered, or reacted to as it changes, is published as a **watch**,
 and its state is one closed union — value and freshness inseparable:
 
 ```ts
-export type Remote<T> =
-  | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'ready'; value: T; stale: boolean }>
-  | Readonly<{ status: 'failed'; reason: RemoteFailure; value?: T }>;
+export type Loadable<T> =
+  | Readonly<{ status: LoadStatus.Loading }>
+  | Readonly<{ status: LoadStatus.Ready; value: T; stale: boolean }>
+  | Readonly<{ status: LoadStatus.Failed; reason: LoadFailure; value?: T }>;
 ```
 
 A read taken at a point in time stays a **query**: `Promise<T>`, reporting
-failure by rejecting. `Remote` never appears on one, because a single answer has
+failure by rejecting. `Loadable` never appears on one, because a single answer has
 no freshness to report.
 
 ```ts
@@ -73,11 +73,11 @@ const state = useObserved(facade.observeAll());
 
 switch (state?.status) {
   case undefined:
-  case 'loading':
+  case LoadStatus.Loading:
     return <Spinner />;
-  case 'ready':
+  case LoadStatus.Ready:
     return <List items={state.value} refreshing={state.stale} />;
-  case 'failed':
+  case LoadStatus.Failed:
     // Old data beats an empty screen.
     return state.value === undefined ? (
       <Error reason={state.reason} />
@@ -93,10 +93,10 @@ says. Where the later changes come from is the domain's business: a cache
 observer, a local database change feed, a socket. The screen cannot tell, and
 does not subscribe twice.
 
-**`Remote` is a boundary type.** The facade creates it; the consumer either
+**`Loadable` is a boundary type.** The facade creates it; the consumer either
 renders it (the UI, whose job is displaying state) or destructures it on entry
 and passes the value inward. It is not a type that travels: no entity, value
-object, use case, or repository port takes or returns a `Remote`.
+object, use case, or repository port takes or returns a `Loadable`.
 
 ## Rejected alternatives
 
@@ -130,7 +130,7 @@ object, use case, or repository port takes or returns a `Remote`.
   `Watch<T>`. Arguments are part of the call (`observeOne(id)`), and the caller
   memoises the returned source — a new reference is a new subscription.
 - **A watch never terminates on failure.** A transport error becomes
-  `{ status: 'failed' }`, not the observer's `error` channel: the first failure
+  `LoadStatus.Failed`, not the observer's `error` channel: the first failure
   would otherwise end the subscription and the screen would stop updating for
   good. `catchError` belongs in the repository that builds the stream.
 - `stale` means "a refresh is in flight", not "past its TTL". With a zero stale
@@ -138,41 +138,41 @@ object, use case, or repository port takes or returns a `Remote`.
   on permanently and tell the user nothing.
 - `failed` keeps the last known value when there was one. Do not drop it to
   simplify a branch.
-- The mapping from a cache or transport type into `Remote` lives in
+- The mapping from a cache or transport type into `Loadable` lives in
   `shared/infrastructure` (or the domain's `infrastructure`), in one function.
   That function is the only place allowed to name the cache library.
 - A domain consuming another domain's watch destructures on entry: `ready` →
   pass `state.value` to its own logic, `failed` → a domain decision (log, defer,
   skip), `loading`/`stale` → usually nothing to do. What goes inward is `T`.
 - A facade may **combine** another domain's watch into a watch of its own
-  projection. It may not republish a foreign `Remote<X>` unchanged: that adds
+  projection. It may not republish a foreign `Loadable<X>` unchanged: that adds
   nothing and couples its contract to the other domain's shape — the consumer
   should subscribe to the owner directly.
-- `features` is a boundary too. Holding a `Remote` in a state machine's context
+- `features` is a boundary too. Holding a `Loadable` in a state machine's context
   is fine; it is an adapter between domain and screen, not business logic.
 - Inside a domain, use cases and repository ports return values and throw. They
-  do not see `Remote` at all.
+  do not see `Loadable` at all.
 
 ## Signals you are violating it
 
 - A `firstValueFrom`-style wrapper around a facade inside `core` — the method
   should have been a query.
-- `Remote` in a use case signature, an entity field, a repository port, or a
+- `Loadable` in a use case signature, an entity field, a repository port, or a
   persisted snapshot.
-- `isLoading`, `isFetching`, or `error` alongside a `Remote` in props, context,
+- `isLoading`, `isFetching`, or `error` alongside a `Loadable` in props, context,
   or machine context.
 - `QueryObserverResult`, `UseQueryResult`, or the name of an HTTP client outside
   `infrastructure`.
 - A watch calling the observer's `error` callback, or completing, when a request
   fails.
 - A screen reading `state.value` without switching on `status`, or with a `!`.
-- A command returning `Remote`, a watch returning a `Promise`, or a query
+- A command returning `Loadable`, a watch returning a `Promise`, or a query
   returning a stream.
 
 ## Related
 
 - [TD-0001](./TD-0001-contracts-contain-types-only.md) — why the union lives in contracts and the mapping does not
 - [TD-0002](./TD-0002-facade-is-the-only-public-surface.md) — the facade these groups belong to
-- [TD-0005](./TD-0005-shared-kernel-stays-business-agnostic.md) — where the adapter that produces `Remote` lives
+- [TD-0005](./TD-0005-shared-kernel-stays-business-agnostic.md) — where the adapter that produces `Loadable` lives
 - [TD-0009](./TD-0009-notifications-go-to-the-bus.md) — the other push channel, and how to tell them apart
 - [TD-0010](./TD-0010-commands-return-no-data.md) — why the write side reads its effect back through these methods

@@ -75,7 +75,7 @@ To choose a channel, three questions:
 - Events are declared as types in `contracts` and published through the bus. A
   facade does not grow methods for them: the `Facade` type has no `events` group,
   and an invented one is a compile error.
-- A watch must carry `Remote<T>`. A stream with no value in it
+- A watch must carry `Loadable<T>`. A stream with no value in it
   (`Subscribable<void>`) is a notification wearing the wrong type — make it an
   event.
 - **A watch is built over the domain's own source of truth** — its cache, its

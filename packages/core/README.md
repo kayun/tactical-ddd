@@ -23,7 +23,7 @@ The suite is being built out incrementally. Primitives currently available:
 - [`DomainError`](#domainerror) — an invariant violation, distinguishable from an infrastructure failure.
 - [`UseCase`](#usecase) — the single-entry-point contract for application use cases.
 - [`Subscribable`](#subscribable) — the minimal shape of a stream, with no stream library attached.
-- [`Remote`](#remote) — the state of remotely held data: its value and its freshness together.
+- [`Loadable`](#loadable) — a value together with the state of getting it, whatever the source.
 - [`Facade`](#facade) — a domain's public surface, with reads and writes separated by type.
 
 > Aggregate roots and domain events are planned. This document covers what ships today.
@@ -225,29 +225,42 @@ Worth knowing:
 - **Operators stay outside.** The type carries no `pipe`: whoever needs `map` or `catchError` keeps rxjs as its own dependency, while the port stays library-free.
 - **`Unsubscribe` is useful on its own** for ports that hand back a teardown function instead of a subscription object.
 
-### Remote
+### Loadable
 
-Data that lives behind a network has no single "current value" — only a value plus how much it can be trusted right now. Modelling the two as separate fields (`value`, `isLoading`, `error`) allows combinations that mean nothing, and every screen re-derives what to show from them.
+Data a screen does not hold itself has no single "current value" — only a value plus how much it can be trusted right now. Modelling the two as separate fields (`value`, `isLoading`, `error`) allows combinations that mean nothing, and every screen re-derives what to show from them.
 
-`Remote` is that state as one closed union, so the caller has to handle each case it can actually be in.
+`Loadable` is that state as one closed union, so the caller has to handle each case it can actually be in. Nothing in it names a source: a local database is loaded, refreshed, and unreadable in the same three ways a server is.
 
 ```ts
-export type Remote<T> =
-  | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'ready'; value: T; stale: boolean }>
-  | Readonly<{ status: 'failed'; reason: RemoteFailure; value?: T }>;
+export enum LoadStatus {
+  Loading = 'loading',
+  Ready = 'ready',
+  Failed = 'failed',
+}
+
+export type Loadable<T> =
+  | Readonly<{ status: LoadStatus.Loading }>
+  | Readonly<{ status: LoadStatus.Ready; value: T; stale: boolean }>
+  | Readonly<{ status: LoadStatus.Failed; reason: LoadFailure; value?: T }>;
+
+export enum LoadFailureKind {
+  Unavailable = 'unavailable', // no answer at all
+  Retryable = 'retryable', // the source broke
+  Rejected = 'rejected', // refused; retrying will not help
+  Unknown = 'unknown',
+}
 ```
 
 ```ts
-import type { Remote } from '@tactical-ddd/core';
+import { type Loadable, LoadStatus } from '@tactical-ddd/core';
 
-const label = <T>(state: Remote<T>): string => {
+const label = <T>(state: Loadable<T>): string => {
   switch (state.status) {
-    case 'loading':
+    case LoadStatus.Loading:
       return 'Loading…';
-    case 'ready':
+    case LoadStatus.Ready:
       return state.stale ? 'Refreshing…' : 'Up to date';
-    case 'failed':
+    case LoadStatus.Failed:
       // Old data is better than an empty screen.
       return state.value === undefined ? 'Unavailable' : 'Showing last known';
   }
@@ -258,7 +271,8 @@ Worth knowing:
 
 - **`stale` means "a refresh is in flight"**, not "past its TTL". A screen that has data should keep showing it rather than flash a spinner, so the flag exists to soften the display, not to hide the value.
 - **`failed` may still carry a value** — the last one known, when there was one. A refresh that fails does not make the data on screen disappear.
-- **`RemoteFailure.kind` says what to do next.** `transport` (no response at all) and `server` are worth retrying, `request` (rejected: forbidden, missing, conflicting) is not, and `unknown` is the honest fallback. The `cause` keeps the original error for logs without letting its type leak into the domain.
+- **`LoadFailureKind` names failures by what the caller can do**, not by where they broke. `Unavailable` (no answer: no connectivity, an unreadable store, a timeout) and `Retryable` are worth another attempt, `Rejected` (forbidden, missing, conflicting) is not, and `Unknown` is the honest fallback. Naming them by remedy is what lets one vocabulary cover a socket and a SQLite file.
+- **`cause` keeps the original error** for logs, without letting its type leak into the domain.
 
 ### Facade
 
@@ -268,7 +282,7 @@ A facade is the one surface a domain shows the outside world, and its methods ar
 
 ```ts
 export type Query<TResult> = Promise<TResult>; // the value as of now
-export type Watch<TValue> = Subscribable<Remote<TValue>>; // and every later one
+export type Watch<TValue> = Subscribable<Loadable<TValue>>; // and every later one
 export type Command<TOutcome extends AnyOutcome | void = void> =
   Promise<TOutcome>; // a write
 ```
@@ -295,8 +309,16 @@ export type BeneficiariesSpec = {
   };
 };
 
-export type Verified = Outcome<'verified'>;
-export type Rejected = Outcome<'rejected', { attemptsRemaining: number }>;
+export enum VerifyStatus {
+  Verified = 'verified',
+  Rejected = 'rejected',
+}
+
+export type Verified = Outcome<VerifyStatus.Verified>;
+export type Rejected = Outcome<
+  VerifyStatus.Rejected,
+  { attemptsRemaining: number }
+>;
 
 export type BeneficiariesFacade = Facade<BeneficiariesSpec>;
 ```
@@ -310,11 +332,11 @@ const state = useObserved(facade.observeAll());
 Worth knowing:
 
 - **A query and a watch are not interchangeable.** A watch hands a new subscriber the current state immediately, which is why it suits a screen or a state machine; a query answers once and rejects on failure, which is what a use case in another domain wants. Reaching for `firstValueFrom` around a facade means the method should have been a query.
-- **`Remote` appears only on watches**, because only a stream has freshness to report. A query's failure is a rejection, so the caller never unwraps a union to get at a value.
+- **`Loadable` appears only on watches**, because only a stream has freshness to report. A query's failure is a rejection, so the caller never unwraps a union to get at a value.
 - **The result is an alias, not an interface.** There is no body to declare a fourth, ungrouped method in, and an invented group name (`events`) is rejected rather than silently dropped — notifications belong on an event bus, not on a facade.
 - **`QueriesOf`, `WatchesOf`, and `CommandsOf`** narrow a facade to one slice, so a component that must not write can be handed the reads alone.
 - **A command resolves to nothing, or to an `Outcome`** — never to domain data. `Command<Beneficiary>`, `Command<Beneficiary[]>`, and `Command<string>` are all compile errors, because what the command changed is read back through a query or a watch, from the one source of truth. Returning it as well would create a second, diverging path to the same data.
-- **An `Outcome` is a tag plus primitive detail**, so wrapping data to sneak it out (`Outcome<'created', { created: Beneficiary }>`) does not compile either. Outcomes describe the attempt — "rejected, two tries left" — which is the one thing no query can answer, because it is about the call rather than about the domain.
+- **An `Outcome` is a tag plus primitive detail**, so wrapping data to sneak it out (`Outcome<Created, { created: Beneficiary }>`) does not compile either. Outcomes describe the attempt — "rejected, two tries left" — which is the one thing no query can answer, because it is about the call rather than about the domain.
 - **A command's refusal is still an exception.** `Outcome` is for expected results a caller must branch on; a broken invariant is a [`DomainError`](#domainerror).
 
 The grouping is not fully machine-checked in one direction: a `Command` may sit in `queries` without complaint, since both are promises. The reverse — a data-returning read filed under `commands` — is rejected, and that is the direction where the damage would be.
