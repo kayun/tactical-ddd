@@ -81,6 +81,65 @@ function restorePackageManifests(snapshots: Map<string, string>): void {
   });
 }
 
+/** Version every package in this workspace is released under for an e2e run. */
+const E2E_VERSION = '0.0.0-e2e';
+
+/** Manifest sections that may reference another package from this workspace. */
+const DEPENDENCY_TYPES = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+] as const;
+
+/**
+ * Points every cross-package `@tactical-ddd/*` reference at {@link E2E_VERSION}
+ * before versioning runs.
+ *
+ * Nx's `preserveMatchingDependencyRanges` (on by default since v23) refuses to
+ * version a package whose dependents declare a *range* the new version falls
+ * outside of — and no `^0.1.x` range can ever contain `0.0.0-e2e`, so the e2e
+ * release aborts as soon as one package declares another as a peer. An exact
+ * version is not a range (`semver.valid` matches it, so Nx's `isValidRange`
+ * returns false), which both takes the check out of the picture and leaves the
+ * published peers pointing at the e2e build that is actually in the local
+ * registry rather than a version published nowhere.
+ *
+ * Called after {@link snapshotPackageManifests}, so the restore in the `finally`
+ * block below puts the real ranges back and nothing leaks into the sources.
+ */
+function pointLocalDependenciesAtE2eVersion(): void {
+  const packagesDir = join(process.cwd(), 'packages');
+
+  for (const name of readdirSync(packagesDir)) {
+    const manifestPath = join(packagesDir, name, 'package.json');
+    if (!existsSync(manifestPath)) {
+      continue;
+    }
+
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    let rewritten = false;
+
+    for (const depType of DEPENDENCY_TYPES) {
+      const deps = manifest[depType] as Record<string, string> | undefined;
+      if (!deps) {
+        continue;
+      }
+
+      for (const dep of Object.keys(deps)) {
+        if (dep.startsWith('@tactical-ddd/') && deps[dep] !== E2E_VERSION) {
+          deps[dep] = E2E_VERSION;
+          rewritten = true;
+        }
+      }
+    }
+
+    if (rewritten) {
+      writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+    }
+  }
+}
+
 const NPMRC_PATH = join(process.cwd(), '.npmrc');
 
 /**
@@ -146,13 +205,16 @@ export default async () => {
   // snapshot them and restore them once publishing is done. The package is
   // published from dist, which keeps the e2e version.
   const manifestSnapshots = snapshotPackageManifests();
+  // Peers/deps between our own packages are declared as `^0.1.x` ranges, which
+  // the e2e version can never satisfy — rewrite them before versioning.
+  pointLocalDependenciesAtE2eVersion();
   // Redirect the scoped registry to the local one for the publish (see above).
   const localRegistry =
     process.env.npm_config_registry ?? `http://localhost:${REGISTRY_PORT}`;
   const originalNpmrc = overrideScopedRegistry(localRegistry);
   try {
     await releaseVersion({
-      specifier: '0.0.0-e2e',
+      specifier: E2E_VERSION,
       stageChanges: false,
       gitCommit: false,
       gitTag: false,
