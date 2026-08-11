@@ -35,9 +35,9 @@
     },
     "preset": {
       "type": "string",
-      "enum": ["none", "react", "react-native"],
+      "enum": ["none", "react", "react-native", "vue"],
       "default": "none",
-      "description": "Framework preset. 'react' installs @tactical-ddd/react + the React (web) runtime and generator defaults; 'react-native' installs @nx/react-native + the React Native runtime and generator defaults.",
+      "description": "Framework preset. 'react' installs @tactical-ddd/react + the React (web) runtime and generator defaults; 'react-native' installs @nx/react-native + the React Native runtime and generator defaults; 'vue' installs @nx/vue + @tactical-ddd/vue + the Vue 3 runtime and generator defaults.",
       "x-prompt": {
         "message": "Which framework preset should be configured?",
         "type": "list",
@@ -50,6 +50,10 @@
           {
             "value": "react-native",
             "label": "React Native (@nx/react-native tooling)"
+          },
+          {
+            "value": "vue",
+            "label": "Vue 3 (@tactical-ddd/vue + Vue tooling)"
           }
         ]
       }

@@ -6,5 +6,5 @@ export interface InitGeneratorSchema {
   linter?: 'eslint' | 'none';
   unitTestRunner?: 'jest' | 'vitest' | 'none';
   bundler?: Bundler;
-  preset?: 'none' | 'react' | 'react-native';
+  preset?: 'none' | 'react' | 'react-native' | 'vue';
 }

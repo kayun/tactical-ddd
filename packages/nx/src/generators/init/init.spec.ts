@@ -255,6 +255,86 @@ describe('init generator', () => {
         },
       });
     });
+
+    it('registers the @nx/vue:library defaults under the vue preset', async () => {
+      await initGenerator(tree, {
+        ...baseOptions,
+        preset: 'vue',
+        unitTestRunner: 'vitest',
+      });
+
+      expect(readNxJson(tree)?.generators).toMatchObject({
+        '@nx/vue:library': {
+          bundler: 'none',
+          linter: 'eslint',
+          unitTestRunner: 'vitest',
+        },
+      });
+    });
+
+    it('coerces a non-vitest runner for the Vue library — Vue has no jest path', async () => {
+      await initGenerator(tree, {
+        ...baseOptions,
+        preset: 'vue',
+        unitTestRunner: 'jest',
+      });
+
+      const generators = readNxJson(tree)?.generators as Record<
+        string,
+        Record<string, unknown>
+      >;
+
+      // `@nx/vue:library` supports only vitest/none, so `jest` is coerced rather
+      // than written through as a default Nx would reject. The framework-agnostic
+      // libraries keep the workspace's own choice.
+      expect(generators['@nx/vue:library'].unitTestRunner).toBe('none');
+      expect(generators['@nx/js:library'].unitTestRunner).toBe('jest');
+    });
+
+    it('keeps the vite bundler for the Vue library, coercing anything else', async () => {
+      await initGenerator(tree, {
+        ...baseOptions,
+        preset: 'vue',
+        bundler: 'vite',
+      });
+      expect(
+        (
+          readNxJson(tree)?.generators as Record<
+            string,
+            Record<string, unknown>
+          >
+        )['@nx/vue:library'].bundler,
+      ).toBe('vite');
+
+      tree = createTreeWithEmptyWorkspace();
+      tree.write(ESLINT_CONFIG, ROOT_ESLINT_WITH_RULE);
+      // `tsc` is the Tactical DDD standard but not one of `@nx/vue:library`'s two
+      // options (`vite`/`none`), so it must not be advertised as a default.
+      await initGenerator(tree, {
+        ...baseOptions,
+        preset: 'vue',
+        bundler: 'tsc',
+      });
+      expect(
+        (
+          readNxJson(tree)?.generators as Record<
+            string,
+            Record<string, unknown>
+          >
+        )['@nx/vue:library'].bundler,
+      ).toBe('none');
+    });
+
+    it('omits the @nx/vue:library defaults without the vue preset', async () => {
+      await initGenerator(tree, { ...baseOptions, preset: 'react' });
+
+      const generators = readNxJson(tree)?.generators as Record<
+        string,
+        Record<string, unknown>
+      >;
+
+      expect(generators['@nx/vue:library']).toBeUndefined();
+    });
   });
 
   describe('module boundaries', () => {
@@ -630,6 +710,77 @@ describe('init generator', () => {
           Record<string, unknown>
         >;
         expect(generators['@nx/react-native:library']).toBeUndefined();
+      });
+    });
+
+    describe('vue preset', () => {
+      it('adds @nx/vue as a devDependency', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        expect(devDeps()).toHaveProperty('@nx/vue');
+      });
+
+      it('adds the Vue runtime and bindings as production dependencies', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        expect(deps()).toEqual(
+          expect.objectContaining({
+            vue: expect.any(String),
+            '@tactical-ddd/vue': expect.any(String),
+          }),
+        );
+      });
+
+      it('never adds the React bindings under the vue preset', async () => {
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        expect(deps()).not.toHaveProperty('@tactical-ddd/react');
+        expect(deps()).not.toHaveProperty('react');
+        expect(devDeps()).not.toHaveProperty('@nx/react');
+      });
+
+      it('does not add the Vue runtime when the workspace already has vue', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          // A Vue app pins its own vue exactly; we defer to it rather than
+          // re-declaring our range on top and forcing a re-resolve.
+          json.dependencies = { ...json.dependencies, vue: '3.4.21' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        expect(deps()['vue']).toBe('3.4.21');
+      });
+
+      it('still adds the @tactical-ddd/vue bindings when vue is already present', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.dependencies = { ...json.dependencies, vue: '3.4.21' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        // Skipping the runtime must not skip our own bindings — they always ship.
+        expect(deps()).toHaveProperty('@tactical-ddd/vue');
+      });
+
+      it('detects an existing Vue runtime declared as a devDependency', async () => {
+        updateJson(tree, 'package.json', (json) => {
+          json.devDependencies = { ...json.devDependencies, vue: '3.4.21' };
+          return json;
+        });
+
+        await initGenerator(tree, { ...baseOptions, preset: 'vue' });
+
+        expect(deps()).not.toHaveProperty('vue');
+      });
+
+      it('does not pull in Vue tooling without the vue preset', async () => {
+        await initGenerator(tree, baseOptions);
+
+        expect(devDeps()).not.toHaveProperty('@nx/vue');
+        expect(deps()).not.toHaveProperty('vue');
+        expect(deps()).not.toHaveProperty('@tactical-ddd/vue');
       });
     });
   });

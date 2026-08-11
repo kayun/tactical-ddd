@@ -17,6 +17,7 @@ import {
   reactNativeRuntimeDependencies,
   reactRuntimeDependencies,
 } from '../../utils/react-runtime';
+import { vueRuntimeDependencies } from '../../utils/vue-runtime';
 import sharedKernelGenerator from '../shared-kernel/shared-kernel';
 import agentsContextSyncGenerator from '../agents-context-sync/agents-context-sync';
 
@@ -42,17 +43,22 @@ const PREFIXED_GENERATORS = ['shared-kernel', 'domain'] as const;
 const BASE_LIBRARY_GENERATORS = ['@nx/js:library'] as const;
 const REACT_LIBRARY_GENERATORS = ['@nx/react:library'] as const;
 const REACT_NATIVE_LIBRARY_GENERATORS = ['@nx/react-native:library'] as const;
+const VUE_LIBRARY_GENERATORS = ['@nx/vue:library'] as const;
 
 /** The Tactical DDD React runtime bindings package. */
 const TACTICAL_DDD_REACT = '@tactical-ddd/react';
 
+/** The Tactical DDD Vue runtime bindings package. */
+const TACTICAL_DDD_VUE = '@tactical-ddd/vue';
+
 /**
- * Version specifier to install `@tactical-ddd/react` at. The React bindings are
- * released in lockstep with this plugin, so we mirror the running plugin's own
- * version. This also makes the e2e suite resolve the locally-published build:
- * both packages are published to the local registry under the same e2e version.
+ * Version specifier to install the `@tactical-ddd/*` bindings at. Every runtime
+ * package is released in lockstep with this plugin, so we mirror the running
+ * plugin's own version. This also makes the e2e suite resolve the
+ * locally-published build: all packages are published to the local registry
+ * under the same e2e version.
  */
-function tacticalDddReactVersion(): string {
+function tacticalDddVersion(): string {
   try {
     // Resolves from the workspace the generator runs in, where the plugin is
     // installed (real usage and e2e).
@@ -115,9 +121,10 @@ export async function initGenerator(
  *
  * Dependencies are scoped to the chosen options: the ESLint tooling is only
  * required when `linter: 'eslint'`, and the test-runner plugin follows
- * `unitTestRunner`. The `react` preset additionally pulls in the `@nx/react`
- * generator plugin (dev-time) plus the `@tactical-ddd/react` bindings as a
- * production dependency.
+ * `unitTestRunner`. A framework preset additionally pulls in its Nx generator
+ * plugin (dev-time) plus the matching `@tactical-ddd/*` bindings as a production
+ * dependency — `@tactical-ddd/react` for `react`/`react-native`,
+ * `@tactical-ddd/vue` for `vue`.
  *
  * The `react`/`react-dom` runtime is treated carefully: a React workspace
  * already ships its own React, and declaring our own range on top adds nothing
@@ -156,7 +163,7 @@ function ensureGeneratorDependencies(
     // Dev-time: powers the `@nx/react:library` defaults and React generators.
     devDependencies['@nx/react'] = NX_VERSION;
     // Run-time: our React bindings always ship in the app.
-    dependencies[TACTICAL_DDD_REACT] = tacticalDddReactVersion();
+    dependencies[TACTICAL_DDD_REACT] = tacticalDddVersion();
 
     // Only provide the React runtime when the workspace manages neither half of
     // it yet; if it already has `react` (or `react-dom`), defer to whatever
@@ -166,12 +173,22 @@ function ensureGeneratorDependencies(
     // Dev-time: powers the `@nx/react-native:library` defaults and generators.
     devDependencies['@nx/react-native'] = NX_VERSION;
     // Run-time: our React bindings always ship in the app.
-    dependencies[TACTICAL_DDD_REACT] = tacticalDddReactVersion();
+    dependencies[TACTICAL_DDD_REACT] = tacticalDddVersion();
 
     // Run-time: `react` + `react-native` (no `react-dom` — native views, not
     // the DOM), added only when the workspace manages neither `react` nor
     // `react-native` yet, for the same skew/`ERESOLVE` reasons as above.
     Object.assign(dependencies, reactNativeRuntimeDependencies(tree));
+  } else if (options.preset === 'vue') {
+    // Dev-time: powers the `@nx/vue:library` defaults and Vue generators.
+    devDependencies['@nx/vue'] = NX_VERSION;
+    // Run-time: our Vue bindings always ship in the app.
+    dependencies[TACTICAL_DDD_VUE] = tacticalDddVersion();
+
+    // Run-time: `vue` alone — compiler and runtime ship in the one package, so
+    // there are no halves to keep in step. Still only added when the workspace
+    // manages none yet, so an existing pin is never re-resolved.
+    Object.assign(dependencies, vueRuntimeDependencies(tree));
   }
 
   return addDependenciesToPackageJson(tree, dependencies, devDependencies);
@@ -197,7 +214,10 @@ function ensureGeneratorDependencies(
  *     "@nx/react:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "jest" },
  *     // `@nx/react-native:library` is added only under the `react-native` preset
  *     // (no `bundler` — Metro is fixed; `unitTestRunner` is `jest` or `none`).
- *     "@nx/react-native:library": { "linter": "eslint", "unitTestRunner": "jest" }
+ *     "@nx/react-native:library": { "linter": "eslint", "unitTestRunner": "jest" },
+ *     // `@nx/vue:library` is added only under the `vue` preset (`bundler` is
+ *     // `vite` or `none`; `unitTestRunner` is `vitest` or `none`).
+ *     "@nx/vue:library": { "bundler": "none", "linter": "eslint", "unitTestRunner": "vitest" }
  *   }
  */
 function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
@@ -254,6 +274,21 @@ function setGeneratorDefaults(tree: Tree, options: InitGeneratorSchema) {
         ...generators[generator],
         linter: options.linter,
         unitTestRunner: options.unitTestRunner === 'jest' ? 'jest' : 'none',
+      };
+    }
+  }
+
+  // `@nx/vue:library` accepts a narrower set than the shared `libraryDefaults`:
+  // `vite` or `none` for `bundler`, `vitest` or `none` for `unitTestRunner`
+  // (Vue libraries are tested with Vitest — there is no jest path). Anything
+  // else is coerced rather than written through as a default Nx would reject.
+  if (options.preset === 'vue') {
+    for (const generator of VUE_LIBRARY_GENERATORS) {
+      generators[generator] = {
+        ...generators[generator],
+        bundler: options.bundler === 'vite' ? 'vite' : 'none',
+        linter: options.linter,
+        unitTestRunner: options.unitTestRunner === 'vitest' ? 'vitest' : 'none',
       };
     }
   }
