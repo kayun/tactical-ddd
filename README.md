@@ -18,9 +18,11 @@ The goal: a single command lays down a consistent `libs/` hierarchy (shared kern
 | Package                                           | Description                                                                                                                               | Status       |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | [`@tactical-ddd/nx`](packages/nx/README.md)       | Nx generators for scaffolding and enforcing DDD architecture (workspace bootstrap, shared kernel, bounded domains, module boundaries).    | ✅ Available |
+| [`@tactical-ddd/core`](packages/core/README.md)   | Framework-agnostic DDD primitives (Entity, Value Object, Use Case, Domain Error, facade contracts) shared by every binding.               | ✅ Available |
 | [`@tactical-ddd/react`](packages/react/README.md) | Shared, domain-agnostic React building blocks (components, hooks, utilities) for DDD / Clean Architecture apps — works in web and native. | ✅ Available |
+| [`@tactical-ddd/vue`](packages/vue/README.md)     | Shared, domain-agnostic Vue 3 building blocks (composables, components, utilities) for DDD / Clean Architecture apps.                     | ✅ Available |
 
-> **Roadmap.** More run-time packages are planned: `@tactical-ddd/core` (framework-agnostic DDD primitives) and the `@tactical-ddd/angular` framework binding. They are not published yet.
+> **Roadmap.** The `@tactical-ddd/angular` framework binding is planned and not published yet.
 
 ## 🚀 Getting Started
 
@@ -65,20 +67,24 @@ nx g @tactical-ddd/nx:domain payments --directory=libs/payments
 nx g @tactical-ddd/nx:shared-kernel
 ```
 
-Add the run-time React building blocks where you need them:
+Add the run-time building blocks where you need them:
 
 ```bash
-npm install @tactical-ddd/react
+npm install @tactical-ddd/core          # framework-agnostic primitives
+npm install @tactical-ddd/react         # React binding
+npm install @tactical-ddd/vue           # Vue 3 binding
 ```
 
-See the [`@tactical-ddd/nx` README](packages/nx/README.md) for the full generator catalog and the target workspace structure it produces, and the [`@tactical-ddd/react` README](packages/react/README.md) for the available React utilities.
+See the [`@tactical-ddd/nx` README](packages/nx/README.md) for the full generator catalog and the target workspace structure it produces, and the [`@tactical-ddd/react`](packages/react/README.md) / [`@tactical-ddd/vue`](packages/vue/README.md) READMEs for the available framework utilities.
 
 ## 📁 Repository Structure
 
 ```
 ├── packages/
 │   ├── nx/        @tactical-ddd/nx      — Nx generators (publishable, dev-time)
+│   ├── core/      @tactical-ddd/core    — framework-agnostic DDD primitives (publishable, run-time)
 │   ├── react/     @tactical-ddd/react   — shared React building blocks (publishable, run-time)
+│   ├── vue/       @tactical-ddd/vue     — shared Vue 3 building blocks (publishable, run-time)
 │   └── nx-e2e/    @tactical-ddd/nx-e2e  — end-to-end tests for the generators (private)
 ├── tools/scripts/ — build & local-registry helpers
 ├── nx.json        — Nx configuration and release setup
