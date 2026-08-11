@@ -50,3 +50,5 @@ vite.config.*.timestamp*
 .nx/self-healing
 .nx/migrate-runs
 test-output
+
+vitest.config.*.timestamp*
