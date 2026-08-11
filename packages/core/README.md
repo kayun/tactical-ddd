@@ -19,6 +19,7 @@ It has no dependency on any UI framework, HTTP client, or build tool: the buildi
 The suite is being built out incrementally. Primitives currently available:
 
 - [`Entity`](#entity) — an object defined by its identity.
+- [`AggregateRoot`](#aggregateroot) — an entity that owns a consistency boundary and the events crossing it.
 - [`ValueObject`](#valueobject) — an object defined by its attributes.
 - [`DomainError`](#domainerror) — an invariant violation, distinguishable from an infrastructure failure.
 - [`UseCase`](#usecase) — the single-entry-point contract for application use cases.
@@ -79,6 +80,64 @@ Worth knowing:
 - **Mutability is your choice.** The base class says nothing about it: identity is carried by `id`, not by the state, so immutable entities that return a new instance on every change are as valid as mutable ones.
 - **Different types are never equal**, even with matching ids. The check compares constructor identity rather than class names, so it also survives minification. A subclass instance is therefore not equal to a base-class instance — override `equals` if a hierarchy needs a looser rule.
 - **Identity may be a value object.** `EntityId` accepts primitives (`string`, `number`, `bigint`, `symbol`) and anything that implements `equals`, in which case comparison is delegated to it instead of comparing references.
+
+### AggregateRoot
+
+Some rules span several objects: an order's total must equal the sum of its lines, a policy must always have at least one active clause. Such a rule has no home on any single entity, and enforcing it from a use case means enforcing it everywhere the objects are touched — that is, eventually not enforcing it.
+
+An **aggregate** is the cluster those objects form, and the **root** is the one entity the outside world addresses. Everything inside the boundary is consistent after every save; everything outside catches up later, through an event.
+
+```ts
+export abstract class AggregateRoot<
+  TId extends EntityId = string,
+  TEvent extends DomainEvent = DomainEvent,
+> extends Entity<TId> {
+  protected recordEvent(event: TEvent): void;
+  pullEvents(): readonly TEvent[];
+  get hasRecordedEvents(): boolean;
+}
+
+export type DomainEvent<
+  TType extends string = string,
+  TPayload extends object = Record<never, never>,
+> = Readonly<{ type: TType } & TPayload>;
+```
+
+```ts
+import { AggregateRoot, type DomainEvent } from '@tactical-ddd/core';
+
+type OrderEvent =
+  | DomainEvent<'OrderLineAdded', { orderId: string }>
+  | DomainEvent<'OrderPlaced', { orderId: string }>;
+
+class Order extends AggregateRoot<string, OrderEvent> {
+  private readonly lines: OrderLine[] = [];
+
+  addLine(line: OrderLine): void {
+    if (this.lines.length >= MAX_LINES) {
+      throw new TooManyLinesError('An order takes at most 100 lines');
+    }
+
+    this.lines.push(line);
+    this.recordEvent({ type: 'OrderLineAdded', orderId: this.id });
+  }
+}
+```
+
+```ts
+// The use case stores first and announces second.
+await this.orders.save(order);
+this.bus.publishAll(order.pullEvents());
+```
+
+Worth knowing:
+
+- **The root records; the caller publishes.** Emitting from inside a domain method would announce a change that has not been stored and cannot be retracted if the save fails.
+- **`pullEvents` drains.** A second call returns nothing, so a retried publish cannot emit the same fact twice, and the returned array is detached — pushing into it does not touch the aggregate.
+- **`recordEvent` is `protected`.** Only the aggregate decides that something happened; from the outside there is nothing to record, because there was no decision.
+- **Events are typed per aggregate.** Declaring the union in `AggregateRoot<TId, TEvent>` makes a foreign event type a compile error rather than a runtime surprise for subscribers.
+- **Reference other aggregates by id**, never by object, and change one aggregate per transaction — otherwise the boundary is decorative.
+- **Smaller is better.** A boundary drawn wide makes unrelated edits collide and every write large; in offline-first workspaces it also decides what is merged as one thing on sync.
 
 ### ValueObject
 

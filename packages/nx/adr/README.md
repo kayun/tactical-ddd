@@ -23,6 +23,7 @@ violating it** (how a violation looks in a diff).
 | [TD-0010](./TD-0010-commands-return-no-data.md)               | Commands return no data — nothing, or how they went                      | giving a write a return type, or reading a command's result            |
 | [TD-0011](./TD-0011-one-primitive-per-concept.md)             | Each domain concept maps to one kernel primitive                         | adding a class to `domain`, or deciding entity vs value object         |
 | [TD-0012](./TD-0012-what-a-repository-is.md)                  | A repository is identity, not storage                                    | naming a new port, or adding a method to a repository                  |
+| [TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md)       | An aggregate is the unit of change                                       | modelling a change that spans objects, or adding a repository          |
 
 ## Status vocabulary
 
