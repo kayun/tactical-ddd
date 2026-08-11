@@ -18,4 +18,7 @@ export default [
       'vue/multi-word-component-names': 'off',
     },
   },
+  {
+    ignores: ['**/out-tsc'],
+  },
 ];
