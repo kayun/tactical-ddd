@@ -21,6 +21,7 @@ In a DDD / Clean Architecture workspace, business logic lives inside isolated do
 The suite is being built out incrementally. Utilities currently available:
 
 - [`createComposeProviders`](#composeproviders) — flattens deeply nested React context providers into a single, declarative list.
+- [`useObserved`](#useobserved) — subscribes a component to a domain stream and re-renders it on every value.
 
 > More components, hooks, and utilities are planned. This document covers what ships today.
 
@@ -28,9 +29,12 @@ The suite is being built out incrementally. Utilities currently available:
 
 ```bash
 npm install @tactical-ddd/react
-# peer dependency
-npm install react
+# peer dependencies
+npm install react @tactical-ddd/core
 ```
+
+`@tactical-ddd/core` is needed for the stream contract `useObserved` accepts; it
+is imported as a type only, so nothing from it ends up in the bundle.
 
 ## Utilities
 
@@ -92,6 +96,41 @@ createComposeProviders(
   providers: Array<Provider<any>>,
 ): ComponentType<PropsWithChildren>;
 ```
+
+### useObserved
+
+A domain publishes changing data as a stream — a facade's watch, an XState actor, an observable. A component needs the current value of that stream and a re-render whenever it changes, without owning the subscription lifecycle or reaching for a stream library of its own.
+
+`useObserved` is that bridge, built on `useSyncExternalStore` so React itself owns the subscription and stays consistent under concurrent rendering.
+
+```ts
+useObserved<T>(source: Subscribable<T>): T | undefined;
+```
+
+```tsx
+import { useMemo } from 'react';
+import { useObserved } from '@tactical-ddd/react';
+
+const BeneficiaryList = ({ facade }: { facade: BeneficiariesFacade }) => {
+  // Memoised: a new source reference is a new subscription.
+  const beneficiaries = useMemo(() => facade.observeAll(), [facade]);
+  const state = useObserved(beneficiaries);
+
+  if (state === undefined) {
+    return <Spinner />;
+  }
+
+  return <List items={state} />;
+};
+```
+
+Worth knowing:
+
+- **`undefined` means "nothing has arrived yet"** — which is not the same as an empty array. A stream that replays its current state to new subscribers (as a watch does) will usually resolve this on the first render.
+- **The source must be stable between renders.** A new reference resubscribes, so build it with `useMemo` over the arguments it depends on — not inline in the JSX.
+- **Changing the source forgets the previous value.** Otherwise a screen would go on showing data belonging to the argument it has moved on from, which reads as a wrong answer rather than as a pending one.
+- **Failures belong to the source, not to the hook.** The hook subscribes with a value callback only: an error delivered to the observer would end the subscription for good and the component would silently stop updating. Model failure as part of the value (see [`Loadable`](https://www.npmjs.com/package/@tactical-ddd/core)) or catch it where the stream is built.
+- **Any `Subscribable` works** — an rxjs `Observable`, an XState actor, a hand-rolled emitter — because the contract is structural and this package depends on none of them.
 
 ## Running unit tests
 
