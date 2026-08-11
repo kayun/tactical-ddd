@@ -21,6 +21,8 @@ violating it** (how a violation looks in a diff).
 | [TD-0008](./TD-0008-value-and-freshness-are-one-state.md)     | Value and freshness are one state; reads split by nature                 | adding a read method to a facade, or rendering loaded data             |
 | [TD-0009](./TD-0009-notifications-go-to-the-bus.md)           | Notifications go to the bus, state goes to a watch                       | adding a domain event, or a second way to learn the same thing         |
 | [TD-0010](./TD-0010-commands-return-no-data.md)               | Commands return no data — nothing, or how they went                      | giving a write a return type, or reading a command's result            |
+| [TD-0011](./TD-0011-one-primitive-per-concept.md)             | Each domain concept maps to one kernel primitive                         | adding a class to `domain`, or deciding entity vs value object         |
+| [TD-0012](./TD-0012-what-a-repository-is.md)                  | A repository is identity, not storage                                    | naming a new port, or adding a method to a repository                  |
 
 ## Status vocabulary
 

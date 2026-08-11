@@ -25,6 +25,7 @@ The suite is being built out incrementally. Primitives currently available:
 - [`Subscribable`](#subscribable) — the minimal shape of a stream, with no stream library attached.
 - [`Loadable`](#loadable) — a value together with the state of getting it, whatever the source.
 - [`Facade`](#facade) — a domain's public surface, with reads and writes separated by type.
+- [`Repository` / `KeyValueStore`](#repository-and-keyvaluestore) — the two ways to keep things, told apart by the compiler.
 
 > Aggregate roots and domain events are planned. This document covers what ships today.
 
@@ -340,6 +341,54 @@ Worth knowing:
 - **A command's refusal is still an exception.** `Outcome` is for expected results a caller must branch on; a broken invariant is a [`DomainError`](#domainerror).
 
 The grouping is not fully machine-checked in one direction: a `Command` may sit in `queries` without complaint, since both are promises. The reverse — a data-returning read filed under `commands` — is rejected, and that is the direction where the damage would be.
+
+### Repository and KeyValueStore
+
+Every workspace grows two kinds of storage port, and they are routinely confused: one keeps domain objects, the other keeps values under a key. Told apart in prose, the distinction survives until the first deadline. These types make it a compile error instead.
+
+The difference is in the data, not in taste. **A repository's objects carry their own identity**, so saving takes one argument. **A store's values do not**, so the key is passed alongside:
+
+```ts
+export interface Repository<
+  TEntity extends Entity<TId>,
+  TId extends EntityId = string,
+>
+  extends FindsById<TEntity, TId>, Saves<TEntity>, Removes<TId> {}
+
+export interface KeyValueStore<TValue, TKey extends string = string> {
+  get(key: TKey): Promise<TValue | null>;
+  set(key: TKey, value: TValue): Promise<void>;
+  remove(key: TKey): Promise<void>;
+}
+```
+
+```ts
+// An entity: identity lives inside it.
+export interface OrderRepositoryPort extends Repository<Order> {
+  findOverdue(): Promise<Order[]>; // queries are named by the domain
+}
+
+// A DTO: identity lives outside it.
+export type TokenStorePort = KeyValueStore<TokenSetDto>;
+
+// @ts-expect-error — a DTO has no identity, so it cannot live in a repository
+export type Wrong = Repository<TokenSetDto>;
+```
+
+| Question                                    |        Repository        |    KeyValueStore    |
+| ------------------------------------------- | :----------------------: | :-----------------: |
+| Does the stored thing know which one it is? |           yes            |         no          |
+| How does `save`/`set` take the key?         |    inside the entity     |   as an argument    |
+| Extends `Entity`?                           |         required         |     irrelevant      |
+| Domain-specific queries?                    | yes, named by the domain | no — it is a bucket |
+
+Worth knowing:
+
+- **Pick the parts you need.** A log that is written and read but never deleted extends `FindsById` and `Saves` and simply omits `Removes` — no operation is forced on a domain that must not offer it.
+- **The bound is the teaching mechanism.** `Repository<TokenSetDto>` does not compile, and the only thing that does compile is the store — so the choice is made by the compiler rather than by convention.
+- **Domain queries belong on the port**, not on the base type: `findOverdue()` is added by the interface that extends `Repository`, because only the domain can name it.
+- **A read-only view is `Pick<KeyValueStore<T>, 'get'>`** rather than another named type.
+- **Neither is for a single value with no key** (a session, the active account) or for a question about the present (`getCurrentIdentity()`) — those are state and query ports, and calling them repositories is what blurs the word.
 
 ## Entity or value object?
 
