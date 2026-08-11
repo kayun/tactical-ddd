@@ -22,6 +22,9 @@ The suite is being built out incrementally. Primitives currently available:
 - [`ValueObject`](#valueobject) — an object defined by its attributes.
 - [`DomainError`](#domainerror) — an invariant violation, distinguishable from an infrastructure failure.
 - [`UseCase`](#usecase) — the single-entry-point contract for application use cases.
+- [`Subscribable`](#subscribable) — the minimal shape of a stream, with no stream library attached.
+- [`Remote`](#remote) — the state of remotely held data: its value and its freshness together.
+- [`Facade`](#facade) — a domain's public surface, with reads and writes separated by type.
 
 > Aggregate roots and domain events are planned. This document covers what ships today.
 
@@ -180,6 +183,141 @@ export class SignInUseCase implements UseCase<
 ```
 
 Because the contract is a plain interface, it disappears at runtime — no base class to extend and no constructor to call `super()` on.
+
+### Subscribable
+
+Some ports do not answer once — they keep answering. A repository that reads a local database has to report every later write to it, and the port that says so needs a type for "a stream of values". Taking that type from rxjs would put a stream library in the domain layer; declaring an ad-hoc callback shape in every port makes them all subtly different.
+
+`Subscribable` is the structural minimum both problems avoid. An rxjs `Observable`, an XState actor, and a hand-written emitter all satisfy it as they are — no adapter, no import.
+
+```ts
+export type Unsubscribe = () => void;
+
+export type Subscription = Readonly<{ unsubscribe: Unsubscribe }>;
+
+export type Observer<T> = Readonly<{
+  next: (value: T) => void;
+  error?: (error: unknown) => void;
+  complete?: () => void;
+}>;
+
+export interface Subscribable<T> {
+  subscribe(observer: Observer<T>): Subscription;
+  subscribe(
+    next: (value: T) => void,
+    error?: (error: unknown) => void,
+    complete?: () => void,
+  ): Subscription;
+}
+```
+
+```ts
+import type { Subscribable } from '@tactical-ddd/core';
+
+export interface BeneficiaryRepository {
+  observeAll(): Subscribable<Beneficiary[]>;
+}
+```
+
+Worth knowing:
+
+- **Both `subscribe` overloads are part of the contract**, because rxjs supports both call styles and narrowing to one would reject `Observable` as an implementation.
+- **Operators stay outside.** The type carries no `pipe`: whoever needs `map` or `catchError` keeps rxjs as its own dependency, while the port stays library-free.
+- **`Unsubscribe` is useful on its own** for ports that hand back a teardown function instead of a subscription object.
+
+### Remote
+
+Data that lives behind a network has no single "current value" — only a value plus how much it can be trusted right now. Modelling the two as separate fields (`value`, `isLoading`, `error`) allows combinations that mean nothing, and every screen re-derives what to show from them.
+
+`Remote` is that state as one closed union, so the caller has to handle each case it can actually be in.
+
+```ts
+export type Remote<T> =
+  | Readonly<{ status: 'loading' }>
+  | Readonly<{ status: 'ready'; value: T; stale: boolean }>
+  | Readonly<{ status: 'failed'; reason: RemoteFailure; value?: T }>;
+```
+
+```ts
+import type { Remote } from '@tactical-ddd/core';
+
+const label = <T>(state: Remote<T>): string => {
+  switch (state.status) {
+    case 'loading':
+      return 'Loading…';
+    case 'ready':
+      return state.stale ? 'Refreshing…' : 'Up to date';
+    case 'failed':
+      // Old data is better than an empty screen.
+      return state.value === undefined ? 'Unavailable' : 'Showing last known';
+  }
+};
+```
+
+Worth knowing:
+
+- **`stale` means "a refresh is in flight"**, not "past its TTL". A screen that has data should keep showing it rather than flash a spinner, so the flag exists to soften the display, not to hide the value.
+- **`failed` may still carry a value** — the last one known, when there was one. A refresh that fails does not make the data on screen disappear.
+- **`RemoteFailure.kind` says what to do next.** `transport` (no response at all) and `server` are worth retrying, `request` (rejected: forbidden, missing, conflicting) is not, and `unknown` is the honest fallback. The `cause` keeps the original error for logs without letting its type leak into the domain.
+
+### Facade
+
+A facade is the one surface a domain shows the outside world, and its methods are not all of one kind. Some read, some write, and among the reads some answer once while others keep answering. Left to a flat interface, which is which is something a reader infers from the return type of each method — and something nothing stops from being inconsistent.
+
+`Facade` takes that decision into the declaration. A spec names three groups, each constrained to a return shape, and the result is flattened back into plain methods:
+
+```ts
+export type Query<TResult> = Promise<TResult>; // the value as of now
+export type Watch<TValue> = Subscribable<Remote<TValue>>; // and every later one
+export type Command<TOutcome extends AnyOutcome | void = void> =
+  Promise<TOutcome>; // a write
+```
+
+```ts
+import type {
+  Command,
+  Facade,
+  Outcome,
+  Query,
+  Watch,
+} from '@tactical-ddd/core';
+
+export type BeneficiariesSpec = {
+  queries: {
+    findOne(id: string): Query<Beneficiary | null>;
+  };
+  watches: {
+    observeAll(): Watch<Beneficiary[]>;
+  };
+  commands: {
+    rename(id: string, name: string): Command;
+    verify(id: string, code: string): Command<Verified | Rejected>;
+  };
+};
+
+export type Verified = Outcome<'verified'>;
+export type Rejected = Outcome<'rejected', { attemptsRemaining: number }>;
+
+export type BeneficiariesFacade = Facade<BeneficiariesSpec>;
+```
+
+```ts
+// Callers see plain methods; the grouping left no trace.
+await facade.rename('1', 'Alicia');
+const state = useObserved(facade.observeAll());
+```
+
+Worth knowing:
+
+- **A query and a watch are not interchangeable.** A watch hands a new subscriber the current state immediately, which is why it suits a screen or a state machine; a query answers once and rejects on failure, which is what a use case in another domain wants. Reaching for `firstValueFrom` around a facade means the method should have been a query.
+- **`Remote` appears only on watches**, because only a stream has freshness to report. A query's failure is a rejection, so the caller never unwraps a union to get at a value.
+- **The result is an alias, not an interface.** There is no body to declare a fourth, ungrouped method in, and an invented group name (`events`) is rejected rather than silently dropped — notifications belong on an event bus, not on a facade.
+- **`QueriesOf`, `WatchesOf`, and `CommandsOf`** narrow a facade to one slice, so a component that must not write can be handed the reads alone.
+- **A command resolves to nothing, or to an `Outcome`** — never to domain data. `Command<Beneficiary>`, `Command<Beneficiary[]>`, and `Command<string>` are all compile errors, because what the command changed is read back through a query or a watch, from the one source of truth. Returning it as well would create a second, diverging path to the same data.
+- **An `Outcome` is a tag plus primitive detail**, so wrapping data to sneak it out (`Outcome<'created', { created: Beneficiary }>`) does not compile either. Outcomes describe the attempt — "rejected, two tries left" — which is the one thing no query can answer, because it is about the call rather than about the domain.
+- **A command's refusal is still an exception.** `Outcome` is for expected results a caller must branch on; a broken invariant is a [`DomainError`](#domainerror).
+
+The grouping is not fully machine-checked in one direction: a `Command` may sit in `queries` without complaint, since both are promises. The reverse — a data-returning read filed under `commands` — is rejected, and that is the direction where the damage would be.
 
 ## Entity or value object?
 
