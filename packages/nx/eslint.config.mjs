@@ -8,7 +8,15 @@ export default [
       '@nx/dependency-checks': [
         'error',
         {
-          ignoredFiles: ['{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}'],
+          ignoredFiles: [
+            '{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}',
+            // EJS templates: their imports belong to the *generated* workspace,
+            // not to this plugin. The facade templates import
+            // `@tactical-ddd/core`, which the domain generator declares for the
+            // libraries it creates — making it a dependency of the plugin would
+            // ship the runtime kernel to everyone who installs the generators.
+            '{projectRoot}/src/generators/**/files/**',
+          ],
           // `@swc/helpers` is a runtime dependency injected by the SWC build
           // (`externalHelpers: true` emits `require("@swc/helpers/...")`), so it
           // never appears as an import in the source the rule scans.
