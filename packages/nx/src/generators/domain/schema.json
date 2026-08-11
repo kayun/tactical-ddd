@@ -35,9 +35,9 @@
     },
     "preset": {
       "type": "string",
-      "enum": ["none", "react", "react-native"],
+      "enum": ["none", "react", "react-native", "vue"],
       "default": "none",
-      "description": "Framework preset for the ui/features layers. 'react' generates them with @nx/react (web); 'react-native' generates them with @nx/react-native (native).",
+      "description": "Framework preset for the ui/features layers. 'react' generates them with @nx/react (web); 'react-native' generates them with @nx/react-native (native); 'vue' generates them with @nx/vue (web).",
       "x-prompt": {
         "message": "Which framework preset should be configured?",
         "type": "list",
@@ -50,6 +50,10 @@
           {
             "value": "react-native",
             "label": "React Native (@nx/react-native tooling)"
+          },
+          {
+            "value": "vue",
+            "label": "Vue 3 (@tactical-ddd/vue + Vue tooling)"
           }
         ]
       }

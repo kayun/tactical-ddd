@@ -172,12 +172,17 @@ export async function domainGenerator(
     );
   }
 
-  // A framework layer (ui/features) needs its runtime present. Add it centrally
-  // — every half at one specifier, and only when the workspace manages none yet
-  // — mirroring the `init` generator; the delegated library generator was told
-  // to skip it above so it can't introduce a skewed runtime. React web pulls in
-  // `react`/`react-dom`; React Native pulls in `react`/`react-native` (no
-  // `react-dom` — it renders to native views, not the DOM).
+  // A framework layer (ui/features) needs its runtime present. For the React
+  // presets we add it centrally — every half at one specifier, and only when the
+  // workspace manages none yet — mirroring the `init` generator; the delegated
+  // library generator was told to skip it above so it can't introduce a skewed
+  // runtime. React web pulls in `react`/`react-dom`; React Native pulls in
+  // `react`/`react-native` (no `react-dom` — it renders to native views, not the
+  // DOM).
+  //
+  // The `vue` preset is absent on purpose: `@nx/vue:library` runs without
+  // `skipPackageJson` (see `generateLayerLibrary`) and declares `vue` itself,
+  // keeping an existing version, so adding it here would be redundant.
   if (options.layers.includes('ui') || options.layers.includes('features')) {
     const runtime =
       options.preset === 'react'
@@ -231,6 +236,7 @@ function layerName(options: DomainGeneratorSchema, layer: string): string {
  *
  * - `react`: `@nx/react`'s generator (web — renders to the DOM).
  * - `react-native`: `@nx/react-native`'s generator (native views, no DOM).
+ * - `vue`: `@nx/vue`'s generator (web — SFCs, Vitest).
  * - `none`: `@nx/js` plus the DOM lib in the library `tsconfig` so browser
  *   globals type-check.
  *
@@ -291,6 +297,33 @@ async function generateLayerLibrary(
       skipTsConfig: false,
       skipFormat: false,
       skipPackageJson: true,
+    });
+  }
+
+  if (options.preset === 'vue') {
+    const { libraryGenerator: vueLibraryGenerator } = ensurePackage<
+      typeof import('@nx/vue')
+    >('@nx/vue', NX_VERSION);
+
+    // No `skipPackageJson` here, unlike the React paths. There it stops a
+    // skewed `react`/`react-dom` pair from being added at a floating range; Vue
+    // ships compiler and runtime in the one package, and `@nx/vue` declares it
+    // with `keepExistingVersions`, so there is no skew to guard against. The
+    // flag would instead skip the Vue tooling the generated library needs to
+    // build and test at all (`@vitejs/plugin-vue`, `vue-tsc`,
+    // `@vue/test-utils`), which `@nx/vue` gates behind the same option.
+    //
+    // `@nx/vue:library` accepts only `vitest`/`none` as a test runner and
+    // `vite`/`none` as a bundler, so anything else is coerced rather than
+    // passed through and rejected.
+    return await vueLibraryGenerator(tree, {
+      name: layer.name,
+      directory: layer.root,
+      addPlugin: true,
+      unitTestRunner: options.unitTestRunner === 'vitest' ? 'vitest' : 'none',
+      bundler: options.bundler === 'vite' ? 'vite' : 'none',
+      linter: options.linter,
+      tags: layer.tags,
     });
   }
 

@@ -35,6 +35,16 @@ jest.mock('@nx/react-native', () => ({
   reactNativeLibraryGenerator: mockReactNativeLibraryGenerator,
 }));
 
+// Same treatment for the `vue` preset, which delegates ui/features to
+// `@nx/vue`'s library generator (also loaded on demand via `ensurePackage`).
+const mockVueLibraryGenerator = jest.fn(
+  async (_tree: Tree, _options: unknown) => () => undefined as void,
+);
+jest.mock('@nx/vue', () => ({
+  __esModule: true,
+  libraryGenerator: mockVueLibraryGenerator,
+}));
+
 const ESLINT_CONFIG = 'eslint.config.mjs';
 
 const ROOT_ESLINT_WITH_RULE = `import nx from '@nx/eslint-plugin';
@@ -388,6 +398,125 @@ describe('domain generator', () => {
       // top of it — we defer entirely to what the workspace already manages.
       expect(deps['react-native']).toBe('0.84.0');
       expect(deps).not.toHaveProperty('react');
+    });
+  });
+
+  describe('vue preset', () => {
+    const vueOptions: DomainGeneratorSchema = {
+      ...baseOptions,
+      preset: 'vue',
+      unitTestRunner: 'vitest',
+      layers: ['ui', 'features'],
+    };
+
+    beforeEach(() => {
+      mockVueLibraryGenerator.mockClear();
+    });
+
+    it('generates ui and features via @nx/vue, not @nx/js', async () => {
+      await domainGenerator(tree, vueOptions);
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledTimes(2);
+      const roots = mockVueLibraryGenerator.mock.calls.map(
+        ([, opts]) => (opts as { directory: string }).directory,
+      );
+      expect(roots).toEqual(
+        expect.arrayContaining(['libs/orders/ui', 'libs/orders/features']),
+      );
+    });
+
+    it('does not fall back to the @nx/js DOM path for a vue layer', async () => {
+      await domainGenerator(tree, { ...vueOptions, layers: ['ui'] });
+
+      // @nx/js was never used for the ui layer, so there is no tsconfig.lib.json
+      // to carry a DOM lib entry — `@nx/vue` writes the library's own config.
+      expect(tree.exists('libs/orders/ui/tsconfig.lib.json')).toBe(false);
+    });
+
+    it('delegates with addPlugin and the layer tags', async () => {
+      await domainGenerator(tree, { ...vueOptions, layers: ['ui'] });
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({
+          directory: 'libs/orders/ui',
+          addPlugin: true,
+          linter: 'eslint',
+          tags: expect.stringContaining(LibraryType.Ui),
+        }),
+      );
+    });
+
+    it('does not skip the package.json — the Vue tooling is gated behind it', async () => {
+      await domainGenerator(tree, { ...vueOptions, layers: ['ui'] });
+
+      // Unlike the React paths: `skipPackageJson` would also drop
+      // `@vitejs/plugin-vue`, `vue-tsc` and `@vue/test-utils`, without which the
+      // generated library cannot build or run its tests. `@nx/vue` declares `vue`
+      // itself keeping any existing version, so there is no skew to guard against.
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.not.objectContaining({ skipPackageJson: true }),
+      );
+    });
+
+    it('passes vitest straight through as the test runner', async () => {
+      await domainGenerator(tree, { ...vueOptions, layers: ['ui'] });
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ unitTestRunner: 'vitest' }),
+      );
+    });
+
+    it('coerces a non-vitest runner to none — Vue supports only vitest/none', async () => {
+      await domainGenerator(tree, {
+        ...vueOptions,
+        layers: ['ui'],
+        unitTestRunner: 'jest',
+      });
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ unitTestRunner: 'none' }),
+      );
+    });
+
+    it('coerces a bundler @nx/vue does not support to none', async () => {
+      // `tsc` is the Tactical DDD standard for the framework-agnostic layers, but
+      // `@nx/vue:library` accepts only vite/none.
+      await domainGenerator(tree, {
+        ...vueOptions,
+        layers: ['ui'],
+        bundler: 'tsc',
+      });
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ bundler: 'none' }),
+      );
+    });
+
+    it('passes vite through as the bundler', async () => {
+      await domainGenerator(tree, {
+        ...vueOptions,
+        layers: ['ui'],
+        bundler: 'vite',
+      });
+
+      expect(mockVueLibraryGenerator).toHaveBeenCalledWith(
+        tree,
+        expect.objectContaining({ bundler: 'vite' }),
+      );
+    });
+
+    it('leaves the Vue runtime to @nx/vue rather than adding it centrally', async () => {
+      await domainGenerator(tree, { ...vueOptions, layers: ['ui'] });
+
+      // The delegated generator (stubbed here) is what declares `vue`, so the
+      // domain generator must not add a second, possibly different range.
+      const deps = readJson(tree, 'package.json').dependencies ?? {};
+      expect(deps).not.toHaveProperty('vue');
     });
   });
 
