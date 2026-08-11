@@ -1,4 +1,6 @@
-import { readJson, type Tree } from '@nx/devkit';
+import { type Tree } from '@nx/devkit';
+
+import { declaredPackages } from './declared-packages';
 
 /**
  * React runtime version added to the *user's* workspace under the `react`
@@ -17,19 +19,6 @@ export const REACT_VERSION = '^19.0.0';
  * never disagree.
  */
 export const REACT_NATIVE_VERSION = '~0.84.1';
-
-/** Merged view of a workspace's declared deps + devDeps. */
-function declaredPackages(tree: Tree): Record<string, string> {
-  const packageJson = readJson<{
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-  }>(tree, 'package.json');
-
-  return {
-    ...packageJson.devDependencies,
-    ...packageJson.dependencies,
-  };
-}
 
 /**
  * Whether the workspace `package.json` already declares `react` or `react-dom`
