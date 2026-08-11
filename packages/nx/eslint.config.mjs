@@ -13,8 +13,8 @@ export default [
           // (`externalHelpers: true` emits `require("@swc/helpers/...")`), so it
           // never appears as an import in the source the rule scans.
           //
-          // `@nx/react` / `@nx/react-native` are *optional* peers the domain
-          // generator loads on demand via `ensurePackage` only under the
+          // `@nx/react` / `@nx/react-native` / `@nx/vue` are *optional* peers the
+          // domain generator loads on demand via `ensurePackage` only under the
           // matching preset — they must not be hard dependencies of the plugin
           // (that would force every consumer to install framework tooling), so
           // they are intentionally absent from `dependencies`.
@@ -27,6 +27,7 @@ export default [
             '@swc/helpers',
             '@nx/react',
             '@nx/react-native',
+            '@nx/vue',
             'eslint',
           ],
         },
