@@ -21,6 +21,7 @@ In a DDD / Clean Architecture workspace, business logic lives inside isolated do
 The suite is being built out incrementally. Utilities currently available:
 
 - [`useObserved`](#useobserved) — exposes a domain stream to a component as a ref that tracks its latest value.
+- [`useWatch`](#usewatch) — the same for a facade's watch, collapsing "not subscribed yet" into `loading`.
 
 > More components, composables, and utilities are planned. This document covers what ships today.
 
@@ -77,6 +78,51 @@ Worth knowing:
 - **Call it in `setup`.** The subscription is bound to the active effect scope and released with it. Called outside a scope it still works, but nothing will unsubscribe for you.
 - **Failures belong to the source, not to the composable.** It subscribes with a value callback only: an error delivered to the observer would end the subscription for good and the component would silently stop updating. Model failure as part of the value (see [`Loadable`](https://www.npmjs.com/package/@tactical-ddd/core)) or catch it where the stream is built.
 - **Any `Subscribable` works** — an rxjs `Observable`, an XState actor, a hand-rolled emitter — because the contract is structural and this package depends on none of them.
+
+### useWatch
+
+A facade publishes changing data as a watch — a stream of [`Loadable`](https://www.npmjs.com/package/@tactical-ddd/core) states. Consuming it with `useObserved` leaves a template checking `undefined` as well as `status`, and that `undefined` is not a state of the data: it means the subscription has not started yet.
+
+Since that says nothing beyond what `LoadStatus.Loading` already says, `useWatch` collapses the two and never yields `undefined`:
+
+```ts
+useWatch<T>(source: MaybeRefOrGetter<Watch<T>>): ComputedRef<Loadable<T>>;
+```
+
+```vue
+<script setup lang="ts">
+import { LoadStatus } from '@tactical-ddd/core';
+import { useWatch } from '@tactical-ddd/vue';
+
+const props = defineProps<{ facade: BeneficiariesFacade }>();
+
+const beneficiaries = useWatch(() => props.facade.observeAll());
+</script>
+
+<template>
+  <Spinner v-if="beneficiaries.status === LoadStatus.Loading" />
+  <List
+    v-else-if="beneficiaries.status === LoadStatus.Ready"
+    :items="beneficiaries.value"
+    :refreshing="beneficiaries.stale"
+  />
+  <!-- Old data beats an empty screen. -->
+  <List
+    v-else-if="beneficiaries.value !== undefined"
+    :items="beneficiaries.value"
+    :error="beneficiaries.reason"
+  />
+  <Failure v-else :reason="beneficiaries.reason" />
+</template>
+```
+
+Worth knowing:
+
+- **The name refers to the facade's watch**, not to Vue's `watch`. Nothing here is a reactive effect the caller has to stop.
+- **One thing to check, not two.** A template branches on `status` alone, so the loading case cannot be forgotten and `value` cannot be read in a state that has none.
+- **The loading state is a shared constant.** A fresh object per evaluation would break reference equality for anything memoising on it, so the same `{ status: LoadStatus.Loading }` is returned every time — including after the source changes.
+- **Changing the source returns to loading**, synchronously, because the previous state described data the caller has moved on from.
+- **Use `useObserved` for streams that are not watches** — an XState actor, a notification, anything not carrying a `Loadable`. There `undefined` is meaningful and should stay visible.
 
 ## Wiring up providers
 

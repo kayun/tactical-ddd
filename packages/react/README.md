@@ -22,6 +22,7 @@ The suite is being built out incrementally. Utilities currently available:
 
 - [`createComposeProviders`](#composeproviders) — flattens deeply nested React context providers into a single, declarative list.
 - [`useObserved`](#useobserved) — subscribes a component to a domain stream and re-renders it on every value.
+- [`useWatch`](#usewatch) — the same for a facade's watch, collapsing "not subscribed yet" into `loading`.
 
 > More components, hooks, and utilities are planned. This document covers what ships today.
 
@@ -33,8 +34,8 @@ npm install @tactical-ddd/react
 npm install react @tactical-ddd/core
 ```
 
-`@tactical-ddd/core` is needed for the stream contract `useObserved` accepts; it
-is imported as a type only, so nothing from it ends up in the bundle.
+`@tactical-ddd/core` provides the stream and state contracts these hooks are
+written against (`Subscribable`, `Watch`, `Loadable`).
 
 ## Utilities
 
@@ -131,6 +132,47 @@ Worth knowing:
 - **Changing the source forgets the previous value.** Otherwise a screen would go on showing data belonging to the argument it has moved on from, which reads as a wrong answer rather than as a pending one.
 - **Failures belong to the source, not to the hook.** The hook subscribes with a value callback only: an error delivered to the observer would end the subscription for good and the component would silently stop updating. Model failure as part of the value (see [`Loadable`](https://www.npmjs.com/package/@tactical-ddd/core)) or catch it where the stream is built.
 - **Any `Subscribable` works** — an rxjs `Observable`, an XState actor, a hand-rolled emitter — because the contract is structural and this package depends on none of them.
+
+### useWatch
+
+A facade publishes changing data as a watch — a stream of [`Loadable`](https://www.npmjs.com/package/@tactical-ddd/core) states. Consuming it with `useObserved` leaves the caller with `Loadable<T> | undefined`, and that `undefined` is not a state of the data: it means the subscription has not started, because `useSyncExternalStore` reads during render but subscribes after commit.
+
+Since "not subscribed yet" tells a screen nothing beyond what `LoadStatus.Loading` already says, `useWatch` collapses the two and never returns `undefined`:
+
+```ts
+useWatch<T>(source: Watch<T>): Loadable<T>;
+```
+
+```tsx
+import { useMemo } from 'react';
+import { LoadStatus } from '@tactical-ddd/core';
+import { useWatch } from '@tactical-ddd/react';
+
+const BeneficiaryList = ({ facade }: { facade: BeneficiariesFacade }) => {
+  const source = useMemo(() => facade.observeAll(), [facade]);
+  const state = useWatch(source);
+
+  switch (state.status) {
+    case LoadStatus.Loading:
+      return <Spinner />;
+    case LoadStatus.Ready:
+      return <List items={state.value} refreshing={state.stale} />;
+    case LoadStatus.Failed:
+      return state.value === undefined ? (
+        <Failure reason={state.reason} />
+      ) : (
+        <List items={state.value} error={state.reason} />
+      );
+  }
+};
+```
+
+Worth knowing:
+
+- **One thing to check, not two.** A component switches on `status` and nothing else, so the loading branch cannot be forgotten and `value` cannot be read in a state that has none.
+- **The loading state is a shared constant.** A fresh object per render would break reference equality and defeat memoisation in every consumer, so the same `{ status: LoadStatus.Loading }` is returned every time.
+- **Changing the source returns to loading**, because the previous state described data the caller has moved on from.
+- **Use `useObserved` for streams that are not watches** — an XState actor, a notification, anything not carrying a `Loadable`. There `undefined` is meaningful and should stay visible.
 
 ## Running unit tests
 
