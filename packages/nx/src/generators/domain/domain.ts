@@ -28,6 +28,11 @@ import {
   reactNativeRuntimeDependencies,
   reactRuntimeDependencies,
 } from '../../utils/react-runtime';
+import {
+  CORE_PACKAGE,
+  coreRuntimeDependencies,
+  coreVersion,
+} from '../../utils/core-runtime';
 
 /** Conventional location of the shared kernel's contracts library. */
 const SHARED_CONTRACTS_ROOT = 'libs/shared/contracts';
@@ -89,6 +94,11 @@ export async function domainGenerator(
       },
       { overwriteStrategy: OverwriteStrategy.Overwrite },
     );
+
+    // The facade type is declared through `Facade` from the runtime kernel, so
+    // the contracts library depends on it — a type-only import, but
+    // `@nx/dependency-checks` counts it all the same.
+    declareCoreDependency(tree, contractsRoot);
   }
 
   if (!libraryExists(tree, coreRoot) && options.layers.includes('core')) {
@@ -146,6 +156,10 @@ export async function domainGenerator(
       });
     }
 
+    // The facade implementation types its methods with `Command`, so the core
+    // library declares the kernel too.
+    declareCoreDependency(tree, coreRoot);
+
     applyCleanArchitectureBoundaries(tree, coreRoot, options.prefix);
   }
 
@@ -183,6 +197,18 @@ export async function domainGenerator(
   // The `vue` preset is absent on purpose: `@nx/vue:library` runs without
   // `skipPackageJson` (see `generateLayerLibrary`) and declares `vue` itself,
   // keeping an existing version, so adding it here would be redundant.
+  // The facade templates are written against the runtime kernel (`Facade`,
+  // `Command`), so the workspace needs it installed. Added on the same terms as
+  // the framework runtimes: only when the workspace manages no version yet, so a
+  // pin already in place is never bumped.
+  if (options.layers.includes('contracts') || options.layers.includes('core')) {
+    const kernel = coreRuntimeDependencies(tree);
+
+    if (Object.keys(kernel).length > 0) {
+      tasks.push(addDependenciesToPackageJson(tree, kernel, {}));
+    }
+  }
+
   if (options.layers.includes('ui') || options.layers.includes('features')) {
     const runtime =
       options.preset === 'react'
@@ -220,6 +246,25 @@ export async function domainGenerator(
   await formatFiles(tree);
 
   return runTasksInSerial(...tasks);
+}
+
+/**
+ * Declares the runtime kernel in a generated library's `package.json`, at the
+ * version the workspace already uses when there is one. Without it
+ * `@nx/dependency-checks` fails the library for importing a package its manifest
+ * does not list — type-only imports included.
+ */
+function declareCoreDependency(tree: Tree, root: string): void {
+  if (!tree.exists(`${root}/package.json`)) {
+    return;
+  }
+
+  const version = coreVersion(tree);
+
+  updateJson(tree, `${root}/package.json`, (pkg) => {
+    pkg.dependencies = { ...pkg.dependencies, [CORE_PACKAGE]: version };
+    return pkg;
+  });
 }
 
 /** Composes a layer library name, applying the optional organization prefix. */
