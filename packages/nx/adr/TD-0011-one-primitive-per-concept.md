@@ -26,12 +26,13 @@ is defined by _who it is_ or by _what it holds_.
 Every concept in a domain is modelled as exactly one primitive, chosen by what
 the concept **is**, not by what is convenient at the call site.
 
-| Primitive     | Model a concept as this when…                                                     | Lives in      | Compared by    |
-| ------------- | --------------------------------------------------------------------------------- | ------------- | -------------- |
-| `Entity`      | it stays itself while its attributes change, and something must find it again     | `domain`      | identity       |
-| `ValueObject` | it is fully described by its attributes, and equal attributes are interchangeable | `domain`      | all attributes |
-| `DomainError` | a rule was broken and the caller must not proceed                                 | `domain`      | —              |
-| `UseCase`     | it is one thing the application does, entered from outside the layer              | `application` | —              |
+| Primitive       | Model a concept as this when…                                                     | Lives in      | Compared by    |
+| --------------- | --------------------------------------------------------------------------------- | ------------- | -------------- |
+| `Entity`        | it stays itself while its attributes change, and something must find it again     | `domain`      | identity       |
+| `AggregateRoot` | it is an entity that also owns invariants across the objects inside its boundary  | `domain`      | identity       |
+| `ValueObject`   | it is fully described by its attributes, and equal attributes are interchangeable | `domain`      | all attributes |
+| `DomainError`   | a rule was broken and the caller must not proceed                                 | `domain`      | —              |
+| `UseCase`       | it is one thing the application does, entered from outside the layer              | `application` | —              |
 
 Four questions decide it:
 
@@ -127,12 +128,14 @@ costs an import and a rename without preventing a single mistake.
 Planned, and already sketched here so the gap is visible rather than filled ad
 hoc:
 
-- **Aggregate root** — the consistency boundary: which entities change together,
-  and which one owns the invariants across them. Until it ships, an entity holds
-  those rules and the boundary is a convention.
-- **Domain events** — a fact published to other domains
-  ([TD-0009](./TD-0009-notifications-go-to-the-bus.md)); today they are types in
-  `contracts` plus a bus of the workspace's choosing.
+- **Aggregate root** — now shipped as `AggregateRoot`
+  ([TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md)): it names the
+  consistency boundary and collects the events a change produced, so there is
+  both a rule it states and code written against it.
+- **Domain events** — the shape is shipped (`DomainEvent`, recorded by an
+  aggregate root); what is still absent is the bus that carries them, which
+  stays the workspace's choice
+  ([TD-0009](./TD-0009-notifications-go-to-the-bus.md)).
 - **Repository** — now shipped, on the third ground above: `Repository` and
   `KeyValueStore` exist to make the wrong one refuse to compile
   ([TD-0012](./TD-0012-what-a-repository-is.md)). Domain-specific queries are
