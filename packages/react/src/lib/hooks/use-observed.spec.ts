@@ -36,13 +36,15 @@ const makeSubject = <T>(initial?: T): Subject<T> => {
 
 describe('useObserved', () => {
   it('is undefined until the stream emits', () => {
-    const { result } = renderHook(() => useObserved(makeSubject<number>()));
+    const subject = makeSubject<number>();
+    const { result } = renderHook(() => useObserved(subject));
 
     expect(result.current).toBeUndefined();
   });
 
   it('returns the value a stream replays on subscribe', () => {
-    const { result } = renderHook(() => useObserved(makeSubject(1)));
+    const subject = makeSubject(1);
+    const { result } = renderHook(() => useObserved(subject));
 
     expect(result.current).toBe(1);
   });
