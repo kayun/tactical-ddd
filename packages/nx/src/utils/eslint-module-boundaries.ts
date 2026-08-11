@@ -163,18 +163,25 @@ export function applyDepConstraints(
  * *inside* a domain's `core` library: `domain` may not reach into `application`
  * or `infrastructure`, and `application` may not reach into `infrastructure`.
  *
- * Each layer gets a relative-path rule (sibling folders under `src/lib`) and,
- * when an organization `prefix` is known, an absolute-path rule that closes the
- * loophole of bypassing the relative rule through a workspace alias.
+ * Each layer gets a relative-path rule and, when an organization `prefix` is
+ * known, an absolute-path rule that closes the loophole of bypassing the
+ * relative rule through a workspace alias.
+ *
+ * The relative patterns are written as `../**\/<layer>` rather than
+ * `../<layer>`, so they also catch a file in a nested folder climbing two or
+ * more levels (`../../application/x` from `domain/entities/`). `**` matches an
+ * empty span too, so this one form covers the sibling case as well. The leading
+ * `../` is what keeps the pattern relative: without it, an unrelated package
+ * whose path happens to contain an `infrastructure` segment would be blocked.
  */
 function domainLayerPatterns(prefix?: string): RestrictedImportPattern[] {
   const patterns: RestrictedImportPattern[] = [
     {
       group: [
-        '../application/*',
-        '../application',
-        '../infrastructure/*',
-        '../infrastructure',
+        '../**/application/*',
+        '../**/application',
+        '../**/infrastructure/*',
+        '../**/infrastructure',
       ],
       message:
         'Clean Architecture violation: Domain layer must be independent and cannot import from Application or Infrastructure layers.',
@@ -198,7 +205,7 @@ function domainLayerPatterns(prefix?: string): RestrictedImportPattern[] {
 function applicationLayerPatterns(prefix?: string): RestrictedImportPattern[] {
   const patterns: RestrictedImportPattern[] = [
     {
-      group: ['../infrastructure/*', '../infrastructure'],
+      group: ['../**/infrastructure/*', '../**/infrastructure'],
       message:
         'Clean Architecture violation: Application layer cannot import from Infrastructure layer.',
     },

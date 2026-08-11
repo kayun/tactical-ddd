@@ -1,5 +1,6 @@
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { Tree, readJson, writeJson } from '@nx/devkit';
+import { Linter } from 'eslint';
 
 import {
   applyCleanArchitectureBoundaries,
@@ -191,8 +192,8 @@ describe('applyCleanArchitectureBoundaries', () => {
     const config = readConfig();
     expect(config).toContain('src/lib/domain/**/*.ts');
     expect(config).toContain('no-restricted-imports');
-    expect(config).toContain('../application');
-    expect(config).toContain('../infrastructure');
+    expect(config).toContain('../**/application');
+    expect(config).toContain('../**/infrastructure');
     expect(config).toContain('Domain layer must be independent');
   });
 
@@ -217,8 +218,105 @@ describe('applyCleanArchitectureBoundaries', () => {
 
     const config = readConfig();
     // Relative-path rules still apply…
-    expect(config).toContain('../infrastructure');
+    expect(config).toContain('../**/infrastructure');
     // …but there is no absolute alias rule to anchor on.
     expect(config).not.toContain('/core/infrastructure/*');
+  });
+
+  /**
+   * The patterns are only worth what ESLint makes of them, and the difference
+   * between `../infrastructure/*` and `../**\/infrastructure/*` is invisible in
+   * a substring assertion. So run the real rule over the groups the generator
+   * just wrote, rather than trusting the text.
+   */
+  describe('the patterns as ESLint reads them', () => {
+    /** Patterns from the override scoped to one layer's folder. */
+    const groupsFor = (layer: 'domain' | 'application'): string[] => {
+      const config = readConfig();
+      const start = config.indexOf(`src/lib/${layer}/**/*.ts`);
+      const end = config.indexOf('src/lib/', start + 1);
+      const block = config.slice(start, end === -1 ? undefined : end);
+
+      // The written config quotes with `"`, but do not depend on that.
+      const patterns = [...block.matchAll(/group:\s*\[([^\]]*)\]/g)].flatMap(
+        ([, body]) =>
+          [...body.matchAll(/["']([^"']+)["']/g)].map(([, pattern]) => pattern),
+      );
+
+      return [...new Set(patterns)];
+    };
+
+    const isBlocked = (patterns: string[], specifier: string): boolean =>
+      new Linter({ configType: 'flat' })
+        .verify(`import { a } from '${specifier}';`, {
+          languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+          rules: {
+            'no-restricted-imports': [
+              'error',
+              { patterns: [{ group: patterns, message: 'nope' }] },
+            ],
+          },
+        })
+        .some((message) => message.ruleId === 'no-restricted-imports');
+
+    beforeEach(() => {
+      applyCleanArchitectureBoundaries(tree, LIB, '@my-org');
+    });
+
+    describe('in the domain layer', () => {
+      it.each([
+        ['../application/use-case', 'a sibling layer folder'],
+        ['../infrastructure/repo', 'the other sibling layer folder'],
+        [
+          '../../application/use-case',
+          'a layer two levels up, from a nested folder',
+        ],
+        ['../../../infrastructure/repo', 'a layer three levels up'],
+        ['../../infrastructure', 'a layer folder itself, from a nested folder'],
+        [
+          '@my-org/auth/core/infrastructure/repo',
+          'the same folder via a workspace alias',
+        ],
+      ])('blocks %s (%s)', (specifier) => {
+        expect(isBlocked(groupsFor('domain'), specifier)).toBe(true);
+      });
+
+      it.each([
+        ['../value-objects/pin', 'a sibling folder within the same layer'],
+        ['./neighbour', 'a file next to this one'],
+        ['@my-org/auth-contracts', "the domain's own contracts"],
+        ['@my-org/shared-infrastructure', 'the shared kernel'],
+        [
+          '@other/infrastructure/client',
+          'an unrelated package with such a segment',
+        ],
+      ])('leaves %s alone (%s)', (specifier) => {
+        expect(isBlocked(groupsFor('domain'), specifier)).toBe(false);
+      });
+    });
+
+    describe('in the application layer', () => {
+      it.each([
+        ['../infrastructure/repo', 'a sibling layer folder'],
+        [
+          '../../infrastructure/repo',
+          'a layer two levels up, from a nested folder',
+        ],
+        ['../../infrastructure', 'the folder itself, from a nested folder'],
+      ])('blocks %s (%s)', (specifier) => {
+        expect(isBlocked(groupsFor('application'), specifier)).toBe(true);
+      });
+
+      it.each([
+        [
+          '../domain/pin-credential.entity',
+          'the layer it is allowed to build on',
+        ],
+        ['../../domain/pin.value-object', 'that layer from a nested folder'],
+        ['./ports/token-repository.port', 'a port beside it'],
+      ])('leaves %s alone (%s)', (specifier) => {
+        expect(isBlocked(groupsFor('application'), specifier)).toBe(false);
+      });
+    });
   });
 });
