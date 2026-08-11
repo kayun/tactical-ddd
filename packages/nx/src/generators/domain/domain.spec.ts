@@ -186,11 +186,35 @@ describe('domain generator', () => {
     });
   });
 
+  /** Types the facade templates may use from the runtime kernel. */
+  const KERNEL_TYPES = ['Facade', 'Query', 'Watch', 'Command', 'Outcome'];
+
+  /** Names of the zero-argument methods a generated facade declares. */
+  const methodNames = (source: string): string[] =>
+    [...source.matchAll(/^\s*(\w+)\(\):/gm)].map(([, name]) => name);
+
+  /**
+   * Kernel types a generated file references without importing them. Compares
+   * against the body only, so the import list itself never counts as a use.
+   */
+  const missingKernelImports = (source: string): string[] => {
+    const importList =
+      /import type \{([^}]+)\} from '@tactical-ddd\/core'/.exec(source)?.[1] ??
+      '';
+    const imported = importList.split(',').map((name) => name.trim());
+    const body = source.replace(/import type \{[^}]+\} from '[^']+';/g, '');
+
+    return KERNEL_TYPES.filter(
+      (type) =>
+        new RegExp(`\\b${type}\\b`).test(body) && !imported.includes(type),
+    );
+  };
+
   describe('facade scaffolding', () => {
     // `names('<domain>Facade').className` — e.g. orders → OrdersFacade.
     const FACADE = 'OrdersFacade';
 
-    it('generates the facade interface (with a DI token) in the contracts library', async () => {
+    it('generates the facade type (with a DI token) in the contracts library', async () => {
       await domainGenerator(tree, baseOptions);
 
       const iface = tree.read(
@@ -198,9 +222,53 @@ describe('domain generator', () => {
         'utf-8',
       );
 
-      expect(iface).toContain(`export interface ${FACADE}`);
-      // The paired const carries a Symbol DI token for the interface.
+      // A type alias, not an interface: `Facade` composes the declared groups,
+      // and an interface body would be a place to add a fourth, ungrouped method.
+      expect(iface).toContain(`export type ${FACADE} = Facade<{`);
+      // The paired const carries a Symbol DI token for the type.
       expect(iface).toContain(`Symbol.for('${FACADE}')`);
+    });
+
+    it('declares one method of each kind, in its own group', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const iface =
+        tree.read(
+          'libs/orders/contracts/src/lib/interfaces/orders-facade.interface.ts',
+          'utf-8',
+        ) ?? '';
+
+      // Each group is constrained to a return shape, so the scaffold shows the
+      // kernel's vocabulary rather than leaving the kind to be inferred later.
+      expect(iface).toContain('queries: {');
+      expect(iface).toContain('query(): Query<unknown>;');
+      expect(iface).toContain('watches: {');
+      expect(iface).toContain('watch(): Watch<unknown>;');
+      expect(iface).toContain('commands: {');
+      expect(iface).toContain('command(): Command;');
+    });
+
+    it('imports every kernel type the facade type uses', async () => {
+      // A type used but not imported makes the generated library fail to
+      // compile, and no unit test of the generator would notice otherwise.
+      await domainGenerator(tree, baseOptions);
+
+      const iface =
+        tree.read(
+          'libs/orders/contracts/src/lib/interfaces/orders-facade.interface.ts',
+          'utf-8',
+        ) ?? '';
+
+      expect(missingKernelImports(iface)).toEqual([]);
+    });
+
+    it('declares the kernel as a dependency of the contracts library', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const dependencies =
+        readJson(tree, 'libs/orders/contracts/package.json').dependencies ?? {};
+
+      expect(dependencies).toHaveProperty('@tactical-ddd/core');
     });
 
     it('barrel-exports the facade interface from the contracts library', async () => {
@@ -225,6 +293,82 @@ describe('domain generator', () => {
       );
       // It depends on the contract abstraction, imported by package name.
       expect(facade).toContain(`from '@my-org/orders-contracts'`);
+      // Methods keep the kernel's vocabulary: a write resolves to nothing.
+      expect(facade).toContain('command(): Command');
+    });
+
+    it('imports every kernel type the implementation uses', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const facade =
+        tree.read(
+          'libs/orders/core/src/lib/application/orders.facade.ts',
+          'utf-8',
+        ) ?? '';
+
+      expect(missingKernelImports(facade)).toEqual([]);
+    });
+
+    it('implements every method the contract declares', async () => {
+      // The two templates are edited by hand and drift silently: a method
+      // renamed in one and not the other only surfaces when a consumer compiles
+      // the generated workspace.
+      await domainGenerator(tree, baseOptions);
+
+      const iface =
+        tree.read(
+          'libs/orders/contracts/src/lib/interfaces/orders-facade.interface.ts',
+          'utf-8',
+        ) ?? '';
+      const facade =
+        tree.read(
+          'libs/orders/core/src/lib/application/orders.facade.ts',
+          'utf-8',
+        ) ?? '';
+
+      const declared = methodNames(iface);
+
+      expect(declared.length).toBeGreaterThan(0);
+      expect(methodNames(facade)).toEqual(declared);
+    });
+
+    it('declares the kernel as a dependency of the core library', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const dependencies =
+        readJson(tree, 'libs/orders/core/package.json').dependencies ?? {};
+
+      expect(dependencies).toHaveProperty('@tactical-ddd/core');
+    });
+
+    it('adds the kernel to the workspace when it manages no version yet', async () => {
+      await domainGenerator(tree, baseOptions);
+
+      const dependencies = readJson(tree, 'package.json').dependencies ?? {};
+
+      expect(dependencies).toHaveProperty('@tactical-ddd/core');
+    });
+
+    it('leaves an existing kernel version untouched', async () => {
+      updateJson(tree, 'package.json', (pkg) => {
+        pkg.dependencies = {
+          ...pkg.dependencies,
+          '@tactical-ddd/core': '0.1.5',
+        };
+        return pkg;
+      });
+
+      await domainGenerator(tree, baseOptions);
+
+      expect(
+        readJson(tree, 'package.json').dependencies['@tactical-ddd/core'],
+      ).toBe('0.1.5');
+      // Libraries follow the workspace rather than pinning a range of their own.
+      expect(
+        readJson(tree, 'libs/orders/contracts/package.json').dependencies[
+          '@tactical-ddd/core'
+        ],
+      ).toBe('0.1.5');
     });
 
     it('imports the contracts package by its unscoped name when no prefix is given', async () => {

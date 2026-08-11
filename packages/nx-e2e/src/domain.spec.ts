@@ -168,7 +168,7 @@ describe.each(WORKSPACE_TYPES)(
         }
       });
 
-      it('generates the facade interface and implementation for each domain', () => {
+      it('generates the facade type and implementation for each domain', () => {
         for (const domain of ['auth', 'payments', 'billing']) {
           // `names('<domain>Facade').className`, e.g. auth → AuthFacade.
           const facade = `${domain[0].toUpperCase()}${domain.slice(1)}Facade`;
@@ -183,7 +183,11 @@ describe.each(WORKSPACE_TYPES)(
             ),
             'utf-8',
           );
-          expect(iface).toContain(`export interface ${facade}`);
+          // A type alias composed by `Facade`, not an interface: the groups it
+          // takes are what separate reads from writes, and an interface body
+          // would be a place to add a method belonging to no group.
+          expect(iface).toContain(`export type ${facade} = Facade<`);
+          expect(iface).toContain(`from '@tactical-ddd/core'`);
 
           const impl = readFileSync(
             join(
