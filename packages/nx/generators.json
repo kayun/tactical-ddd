@@ -14,6 +14,11 @@
       "factory": "./src/generators/domain/domain",
       "schema": "./src/generators/domain/schema.json",
       "description": "Scaffold a bounded business domain (contracts/core/ui/features layers) with scope/type tags and per-domain cross-domain import isolation"
+    },
+    "agents-context-sync": {
+      "factory": "./src/generators/agents-context-sync/agents-context-sync",
+      "schema": "./src/generators/agents-context-sync/schema.json",
+      "description": "Sync the architecture decision records shipped with this plugin into the workspace and point the agent guide at them. Use --check in CI to fail on drift"
     }
   }
 }

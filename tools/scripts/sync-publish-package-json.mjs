@@ -52,6 +52,10 @@ const PUBLISH_FIELDS = [
   'executors',
   'schematics',
   'builders',
+  // Where `nx migrate` looks for this package's migrations. Dropped, it would
+  // publish a migrations file with nothing pointing at it.
+  'nx-migrations',
+  'ng-update',
   'dependencies',
   'peerDependencies',
   'peerDependenciesMeta',
@@ -81,7 +85,12 @@ function syncManifest(projectRoot, outputDir, manifestRef) {
 
   const manifest = JSON.parse(readFileSync(sourcePath, 'utf8'));
 
-  for (const collection of ['generators', 'schematics', 'executors', 'builders']) {
+  for (const collection of [
+    'generators',
+    'schematics',
+    'executors',
+    'builders',
+  ]) {
     const entries = manifest[collection];
     if (!entries) continue;
     for (const entry of Object.values(entries)) {
@@ -123,6 +132,15 @@ function syncOne(projectRoot, outputDir) {
   for (const field of ['generators', 'schematics', 'executors', 'builders']) {
     if (typeof publishPkg[field] === 'string') {
       syncManifest(projectRoot, outputDir, publishPkg[field]);
+    }
+  }
+
+  // Migrations are referenced through a nested field, and the file lists its
+  // entries under `generators`, so the same rewrite applies to it.
+  for (const field of ['nx-migrations', 'ng-update']) {
+    const migrationsRef = publishPkg[field]?.migrations;
+    if (typeof migrationsRef === 'string') {
+      syncManifest(projectRoot, outputDir, migrationsRef);
     }
   }
 }

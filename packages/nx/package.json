@@ -100,6 +100,16 @@
               "input": "./packages/nx",
               "glob": "README.md",
               "output": "."
+            },
+            {
+              "input": "./packages/nx",
+              "glob": "adr/**",
+              "output": "."
+            },
+            {
+              "input": "./packages/nx",
+              "glob": "migrations.json",
+              "output": "."
             }
           ]
         }
@@ -112,5 +122,8 @@
     "@nx/js": "^22.0.0 || ^23.0.0",
     "@swc/helpers": "~0.5.18"
   },
-  "generators": "./generators.json"
+  "generators": "./generators.json",
+  "nx-migrations": {
+    "migrations": "./migrations.json"
+  }
 }

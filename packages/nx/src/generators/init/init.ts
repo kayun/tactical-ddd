@@ -1,9 +1,7 @@
 import {
   addDependenciesToPackageJson,
   formatFiles,
-  generateFiles,
   NX_VERSION,
-  OverwriteStrategy,
   readNxJson,
   runTasksInSerial,
   updateNxJson,
@@ -11,7 +9,6 @@ import {
   type NxJsonConfiguration,
   type Tree,
 } from '@nx/devkit';
-import { resolve } from 'path';
 
 import type { InitGeneratorSchema } from './schema';
 import { DEP_CONSTRAINTS } from './module-boundaries';
@@ -21,6 +18,7 @@ import {
   reactRuntimeDependencies,
 } from '../../utils/react-runtime';
 import sharedKernelGenerator from '../shared-kernel/shared-kernel';
+import agentsContextSyncGenerator from '../agents-context-sync/agents-context-sync';
 
 /**
  * Collection name this plugin publishes its generators under. Used as the key
@@ -92,16 +90,10 @@ export async function initGenerator(
   // the workspace has no ESLint config — e.g. `linter: none`.
   applyDepConstraints(tree, DEP_CONSTRAINTS);
 
-  // Drop an architecture guide for AI agents at the workspace root so they place
-  // files/entities by the same boundaries lint enforces. `KeepExisting` so a
-  // re-run never clobbers a guide the user has customized.
-  generateFiles(
-    tree,
-    resolve(__dirname, 'files'),
-    '.',
-    { prefix: options.prefix ?? '' },
-    { overwriteStrategy: OverwriteStrategy.KeepExisting },
-  );
+  // Everything written for AI agents — the architecture guide, the decision
+  // records behind it, and the pointer between them — is owned by one generator,
+  // so a workspace can refresh it later without re-running `init`.
+  await agentsContextSyncGenerator(tree, { prefix: options.prefix });
 
   await formatFiles(tree);
 

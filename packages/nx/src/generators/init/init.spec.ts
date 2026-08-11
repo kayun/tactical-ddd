@@ -95,12 +95,31 @@ describe('init generator', () => {
       expect(guide).not.toContain('@my-org/');
     });
 
-    it('does not overwrite an existing guide', async () => {
+    it('never replaces a guide the workspace customized', async () => {
       tree.write('AGENTS.md', 'CUSTOM');
 
       await initGenerator(tree, baseOptions);
 
-      expect(tree.read('AGENTS.md', 'utf-8')).toBe('CUSTOM');
+      const guide = tree.read('AGENTS.md', 'utf-8') ?? '';
+      expect(guide).toContain('CUSTOM');
+      expect(guide).not.toContain('# Architecture Guide for AI Agents');
+    });
+
+    it('adds the decision-record pointer to an existing guide', async () => {
+      tree.write('AGENTS.md', 'CUSTOM');
+
+      await initGenerator(tree, baseOptions);
+
+      expect(tree.read('AGENTS.md', 'utf-8')).toContain(
+        'tactical-ddd:adr-index:start',
+      );
+    });
+
+    it('syncs the library decision records the guide points at', async () => {
+      await initGenerator(tree, baseOptions);
+
+      expect(tree.exists('docs/adr/td/README.md')).toBe(true);
+      expect(tree.children('docs/adr/td').length).toBeGreaterThan(1);
     });
   });
 
