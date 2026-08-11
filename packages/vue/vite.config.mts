@@ -1,5 +1,5 @@
 /// <reference types='vitest' />
-import { defineConfig, type Plugin } from 'vite';
+import { defaultClientConditions, defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import dts from 'vite-plugin-dts';
 import { copyFileSync } from 'node:fs';
@@ -64,6 +64,15 @@ export default defineConfig(() => ({
       // External packages that should not be bundled into your library.
       external: ['vue', '@tactical-ddd/core'],
     },
+  },
+  resolve: {
+    // Sibling packages in this repo publish a `@tactical-ddd/source` export
+    // condition pointing at their TypeScript sources (see `customConditions` in
+    // tsconfig.base.json). Without it a runtime import of `@tactical-ddd/core`
+    // resolves to `./index.js`, which only exists in the build output — so tests
+    // would need the package built first. The default conditions are kept, or
+    // resolving `vue` itself would break.
+    conditions: ['@tactical-ddd/source', ...defaultClientConditions],
   },
   test: {
     name: '@tactical-ddd/vue',
