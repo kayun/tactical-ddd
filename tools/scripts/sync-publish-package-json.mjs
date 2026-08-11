@@ -72,6 +72,27 @@ function stripSrc(relPath) {
   return relPath.replace(/^(\.\/)?src\//, './');
 }
 
+// Resolution condition that points at TypeScript sources so packages in this
+// repo can import each other without building first (see `customConditions` in
+// tsconfig.base.json). It must not be published: `src/` does not exist in the
+// output, so anything resolving through it would find nothing.
+const SOURCE_CONDITION = '@tactical-ddd/source';
+
+function withoutSourceCondition(exportsField) {
+  if (typeof exportsField !== 'object' || exportsField === null) {
+    return exportsField;
+  }
+
+  return Object.fromEntries(
+    Object.entries(exportsField)
+      .filter(([condition]) => condition !== SOURCE_CONDITION)
+      .map(([condition, target]) => [
+        condition,
+        withoutSourceCondition(target),
+      ]),
+  );
+}
+
 // Rewrite a single collection manifest (e.g. generators.json) from the source
 // layout into the built layout and write it next to the publish package.json.
 function syncManifest(projectRoot, outputDir, manifestRef) {
@@ -122,6 +143,10 @@ function syncOne(projectRoot, outputDir) {
     if (source[field] !== undefined) {
       publishPkg[field] = source[field];
     }
+  }
+
+  if (publishPkg.exports !== undefined) {
+    publishPkg.exports = withoutSourceCondition(publishPkg.exports);
   }
 
   const outputPath = join(outputDir, 'package.json');
