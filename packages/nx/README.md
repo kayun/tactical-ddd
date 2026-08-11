@@ -10,7 +10,7 @@
 
 The suite is being built out incrementally. Generators currently available:
 
-- [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset — React or React Native) in one step.
+- [`init`](#init-generator) — the recommended starting point: bootstraps the whole workspace (generator defaults, module-boundary lint rules, the Shared Kernel, and an optional framework preset — React, React Native or Vue) in one step.
 - [`shared-kernel`](#shared-kernel-generator) — scaffolds the Shared Kernel, the agnostic foundation reused by every other module.
 - [`domain`](#domain-generator) — scaffolds a bounded business domain (its `contracts`/`core`/`ui`/`features` layers) and wires up cross-domain isolation.
 
@@ -18,7 +18,7 @@ The suite is being built out incrementally. Generators currently available:
 
 The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace. Run it once, right after creating your Nx workspace, and it wires up everything the rest of the ecosystem relies on. It is a composing generator — it does not duplicate logic, but orchestrates the lower-level pieces:
 
-1. **Workspace generator defaults** — persists shared options into `nx.json` so they are configured **once** and Nx injects them automatically into later generator invocations, so you never have to retype them. Two groups are written: the organization `prefix` plus `linter`/`unitTestRunner` for our own `@tactical-ddd/nx` generators, and the same `bundler`/`linter`/`unitTestRunner` choices for the built-in `@nx/js:library` generator — so even a hand-rolled `nx g @nx/js:library` already matches the conventions. The matching framework library defaults are added only under the corresponding preset: `@nx/react:library` for `react`, `@nx/react-native:library` for `react-native` (the latter without a `bundler` — Metro is fixed — and with `jest`/`none` as the only test runners):
+1. **Workspace generator defaults** — persists shared options into `nx.json` so they are configured **once** and Nx injects them automatically into later generator invocations, so you never have to retype them. Two groups are written: the organization `prefix` plus `linter`/`unitTestRunner` for our own `@tactical-ddd/nx` generators, and the same `bundler`/`linter`/`unitTestRunner` choices for the built-in `@nx/js:library` generator — so even a hand-rolled `nx g @nx/js:library` already matches the conventions. The matching framework library defaults are added only under the corresponding preset: `@nx/react:library` for `react`, `@nx/react-native:library` for `react-native` (without a `bundler` — Metro is fixed — and with `jest`/`none` as the only test runners), and `@nx/vue:library` for `vue` (whose `bundler` is `vite`/`none` and whose only test runners are `vitest`/`none`, so anything else you chose is coerced):
 
    ```jsonc
    // nx.json
@@ -47,6 +47,12 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
          "linter": "eslint",
          "unitTestRunner": "jest",
        },
+       // Added only with `--preset=vue` (`bundler`: vite/none, runner: vitest/none):
+       "@nx/vue:library": {
+         "bundler": "none",
+         "linter": "eslint",
+         "unitTestRunner": "vitest",
+       },
      },
    }
    ```
@@ -59,10 +65,11 @@ The `init` generator is the **one-shot bootstrap** for a Tactical DDD workspace.
 
    - `--preset=react` sets it up for React (web): the `@nx/react:library` defaults above are written, the `@nx/react` generator plugin is added, and the React runtime — `react`, `react-dom` and the [`@tactical-ddd/react`](https://www.npmjs.com/package/@tactical-ddd/react) bindings — is installed as a production dependency.
    - `--preset=react-native` sets it up for React Native: the `@nx/react-native:library` defaults above are written, the `@nx/react-native` generator plugin is added, and the native runtime — `react` and `react-native` — is installed as a production dependency. No `react-dom` (React Native renders to native views, not the DOM) and no `@tactical-ddd/react` web bindings.
+   - `--preset=vue` sets it up for Vue 3: the `@nx/vue:library` defaults above are written, the `@nx/vue` generator plugin is added, and the Vue runtime — `vue` and the [`@tactical-ddd/vue`](https://www.npmjs.com/package/@tactical-ddd/vue) bindings — is installed as a production dependency. Vue ships compiler and runtime in the one package, so there is no second half to keep in step.
 
-   With the default `--preset=none` the workspace stays framework-agnostic and no framework tooling is pulled in. In every case the framework runtime is added only when the workspace manages none of it yet, so an existing (possibly pinned) `react`/`react-dom`/`react-native` is never re-resolved or overwritten.
+   With the default `--preset=none` the workspace stays framework-agnostic and no framework tooling is pulled in. In every case the framework runtime is added only when the workspace manages none of it yet, so an existing (possibly pinned) `react`/`react-dom`/`react-native`/`vue` is never re-resolved or overwritten.
 
-5. **Dependency check & install** — ensures the packages the configured and invoked generators rely on are present in the workspace `package.json`, installing any that are missing (via `addDependenciesToPackageJson`). Nx plugin versions are pinned to the workspace's Nx version. The set is scoped to your choices: `@nx/js` always; `@nx/eslint` + `@nx/eslint-plugin` when `linter: eslint`; `@nx/jest` or `@nx/vite` to match `unitTestRunner`; and the React (web) or React Native packages above when `preset: react` / `preset: react-native`. Already-installed packages are left untouched (never downgraded).
+5. **Dependency check & install** — ensures the packages the configured and invoked generators rely on are present in the workspace `package.json`, installing any that are missing (via `addDependenciesToPackageJson`). Nx plugin versions are pinned to the workspace's Nx version. The set is scoped to your choices: `@nx/js` always; `@nx/eslint` + `@nx/eslint-plugin` when `linter: eslint`; `@nx/jest` or `@nx/vite` to match `unitTestRunner`; and the framework packages above when `preset: react` / `preset: react-native` / `preset: vue`. Already-installed packages are left untouched (never downgraded).
 
 > Order matters and is handled for you: the Shared Kernel is generated first (in a fresh workspace the root ESLint config only exists after the first library is created), then the module-boundary rules are applied to it.
 
@@ -84,18 +91,24 @@ For a React Native workspace, use the `react-native` preset instead — it insta
 nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=jest --preset=react-native
 ```
 
+For a Vue 3 workspace, use the `vue` preset — it installs the `@nx/vue` tooling, `vue` and the `@tactical-ddd/vue` bindings. Vue libraries are tested with Vitest, so pair it with `--unitTestRunner=vitest`:
+
+```bash
+nx g @tactical-ddd/nx:init --prefix=@my-org --linter=eslint --unitTestRunner=vitest --preset=vue
+```
+
 When run interactively (or via Nx Console), the generator prompts for any required option that is not passed on the command line.
 
 ### Options
 
-| Option            | Type     | Default       | Required | Description                                                                                                                                                                                                                                                |
-| ----------------- | -------- | ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prefix`          | `string` | —             | Yes      | Organization prefix used for the generated library names, e.g. `@my-org`. Set once, reused by all generators.                                                                                                                                              |
-| `sharedDirectory` | `string` | `libs/shared` | No       | Root folder the Shared Kernel libraries are generated into.                                                                                                                                                                                                |
-| `linter`          | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                                                                                                                                                                  |
-| `unitTestRunner`  | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                                                                                                                                                                               |
-| `bundler`         | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                                                                                                                                                             |
-| `preset`          | `string` | `none`        | No       | Framework preset. `react` installs `@tactical-ddd/react` + the React (web) runtime and generator defaults; `react-native` installs `@nx/react-native` + the `react`/`react-native` runtime and generator defaults. One of `none`, `react`, `react-native`. |
+| Option            | Type     | Default       | Required | Description                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | -------- | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prefix`          | `string` | —             | Yes      | Organization prefix used for the generated library names, e.g. `@my-org`. Set once, reused by all generators.                                                                                                                                                                                                                                                |
+| `sharedDirectory` | `string` | `libs/shared` | No       | Root folder the Shared Kernel libraries are generated into.                                                                                                                                                                                                                                                                                                  |
+| `linter`          | `string` | —             | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                                                                                                                                                                                                                                                                    |
+| `unitTestRunner`  | `string` | —             | Yes      | Unit test runner to set up. One of `jest`, `vitest`, `none`.                                                                                                                                                                                                                                                                                                 |
+| `bundler`         | `string` | `none`        | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                                                                                                                                                                                                                                                               |
+| `preset`          | `string` | `none`        | No       | Framework preset. `react` installs `@tactical-ddd/react` + the React (web) runtime and generator defaults; `react-native` installs `@nx/react-native` + the `react`/`react-native` runtime and generator defaults; `vue` installs `@nx/vue` + `@tactical-ddd/vue` + the `vue` runtime and generator defaults. One of `none`, `react`, `react-native`, `vue`. |
 
 > The generator is idempotent: re-running it refreshes the `nx.json` defaults and module-boundary rules and safely skips Shared Kernel libraries that already exist.
 >
@@ -279,9 +292,10 @@ The `--layers` option selects which layers to generate (default: `contracts,core
 >
 > - `react` — React (web) libraries via `@nx/react`; a DOM lib is left in the library `tsconfig`.
 > - `react-native` — React Native libraries via `@nx/react-native` (native views, no DOM lib).
+> - `vue` — Vue 3 libraries via `@nx/vue` (SFCs, Vitest). Its two options are narrower than the workspace-wide ones, so `unitTestRunner` becomes `vitest` or `none` and `bundler` becomes `vite` or `none`.
 > - `none` (default) — framework-agnostic `@nx/js` libraries, with a DOM lib added to the `tsconfig` for browser globals.
 >
-> The framework generator (`@nx/react` / `@nx/react-native`) is loaded lazily only when its preset is selected, so the plugin never hard-depends on either. The matching runtime (`react`/`react-dom` or `react`/`react-native`) is added centrally, only when the workspace manages none of it yet.
+> The framework generator (`@nx/react` / `@nx/react-native` / `@nx/vue`) is loaded lazily only when its preset is selected, so the plugin never hard-depends on any of them. For the React presets the matching runtime (`react`/`react-dom` or `react`/`react-native`) is added centrally, only when the workspace manages none of it yet; under `vue` the runtime is left to `@nx/vue:library`, which declares `vue` itself and keeps an existing version.
 
 ### Cross-domain isolation (published-language)
 
@@ -314,16 +328,16 @@ nx g @tactical-ddd/nx:domain payments \
 
 ### Options
 
-| Option           | Type       | Default          | Required | Description                                                                                                                                                               |
-| ---------------- | ---------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`           | `string`   | —                | Yes      | Domain name, also the `domain:<name>` tag. Passed as the first positional argument.                                                                                       |
-| `directory`      | `string`   | —                | Yes      | Root folder the domain libraries are generated into, e.g. `libs/payments`.                                                                                                |
-| `layers`         | `string[]` | `contracts,core` | Yes      | Architectural layers to generate. Any of `contracts`, `core`, `ui`, `features`.                                                                                           |
-| `prefix`         | `string`   | —                | No       | Organization prefix used for the generated library names, e.g. `@my-org`.                                                                                                 |
-| `preset`         | `string`   | `none`           | No       | Framework preset for the `ui`/`features` layers. `react` uses `@nx/react` (web); `react-native` uses `@nx/react-native` (native). One of `none`, `react`, `react-native`. |
-| `linter`         | `string`   | —                | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                                                                                 |
-| `unitTestRunner` | `string`   | —                | No       | Unit test runner to set up. One of `jest`, `vitest`, `none`. (`contracts` is always generated without one.)                                                               |
-| `bundler`        | `string`   | `tsc`            | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                                                                            |
+| Option           | Type       | Default          | Required | Description                                                                                                                                                                                                  |
+| ---------------- | ---------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`           | `string`   | —                | Yes      | Domain name, also the `domain:<name>` tag. Passed as the first positional argument.                                                                                                                          |
+| `directory`      | `string`   | —                | Yes      | Root folder the domain libraries are generated into, e.g. `libs/payments`.                                                                                                                                   |
+| `layers`         | `string[]` | `contracts,core` | Yes      | Architectural layers to generate. Any of `contracts`, `core`, `ui`, `features`.                                                                                                                              |
+| `prefix`         | `string`   | —                | No       | Organization prefix used for the generated library names, e.g. `@my-org`.                                                                                                                                    |
+| `preset`         | `string`   | `none`           | No       | Framework preset for the `ui`/`features` layers. `react` uses `@nx/react` (web); `react-native` uses `@nx/react-native` (native); `vue` uses `@nx/vue` (web). One of `none`, `react`, `react-native`, `vue`. |
+| `linter`         | `string`   | —                | Yes      | Linter to configure for the generated libraries. One of `eslint`, `none`.                                                                                                                                    |
+| `unitTestRunner` | `string`   | —                | No       | Unit test runner to set up. One of `jest`, `vitest`, `none`. (`contracts` is always generated without one.)                                                                                                  |
+| `bundler`        | `string`   | `tsc`            | No       | Bundler used to build the libraries. One of `none`, `swc`, `tsc`, `rollup`, `vite`, `esbuild`.                                                                                                               |
 
 > The generator is idempotent: it checks for each layer's library before creating it, so re-running it safely fills in only the layers that are missing.
 >
