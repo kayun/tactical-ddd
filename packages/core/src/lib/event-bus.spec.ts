@@ -1,5 +1,5 @@
 import type { DomainEvent } from './aggregate-root.js';
-import { InMemoryEventBus } from './event-bus.js';
+import { DomainEventBus } from './event-bus.js';
 
 type BeneficiaryAdded = DomainEvent<'BeneficiaryAdded', { id: string }>;
 type BeneficiaryRemoved = DomainEvent<'BeneficiaryRemoved', { id: string }>;
@@ -14,15 +14,17 @@ const removed = (id: string): BeneficiaryRemoved => ({
   id,
 });
 
-let bus: InMemoryEventBus<BeneficiaryEvent>;
+let bus: DomainEventBus<BeneficiaryEvent>;
 let errors: unknown[];
 
 beforeEach(() => {
   errors = [];
-  bus = new InMemoryEventBus<BeneficiaryEvent>((error) => errors.push(error));
+  bus = new DomainEventBus<BeneficiaryEvent>({
+    onError: (error) => errors.push(error),
+  });
 });
 
-describe('InMemoryEventBus', () => {
+describe('DomainEventBus', () => {
   it('delivers a fact to everyone listening for it', () => {
     const seen: string[] = [];
 
@@ -182,7 +184,7 @@ describe('InMemoryEventBus', () => {
   });
 });
 
-const typed = new InMemoryEventBus<BeneficiaryEvent>();
+const typed = new DomainEventBus<BeneficiaryEvent>();
 
 // @ts-expect-error — not one of the bus's event types
 typed.on('BeneficiaryRenamed', () => undefined);
