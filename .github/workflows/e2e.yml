@@ -14,6 +14,15 @@ permissions:
 
 jobs:
   e2e:
+    # Skip the release commit `nx release` pushes to main (its message pattern is
+    # set in nx.json under `release.git.commitMessage`). It only rewrites version
+    # fields and changelogs, so this — the slowest workflow in the repo, two Nx
+    # majors × two linking strategies — would re-verify the exact code the same
+    # push already verified before the release. Guarded on the event because
+    # `head_commit` is absent for workflow_dispatch, which must stay runnable.
+    if: >-
+      github.event_name != 'push' ||
+      !startsWith(github.event.head_commit.message, 'chore(release): v')
     runs-on: ubuntu-latest
     # Each matrix leg publishes the plugin to a local registry and scaffolds
     # real Nx workspaces (both linking strategies), so give it ample time.
