@@ -40,36 +40,40 @@ const PINNED_NX_PACKAGES = [
 ];
 
 /**
- * `create-nx-workspace` flag selecting the linking strategy. Kept aligned with
- * {@link createWorkspaceEnv} as an explicit, documented statement of intent.
+ * `create-nx-workspace` flag selecting the linking strategy. This is the only
+ * thing that decides the scaffolded shape — {@link createWorkspaceEnv} exists to
+ * keep it that way.
  */
 function workspaceFlags(workspaceType: WorkspaceType): string {
   return workspaceType === 'ts-solution' ? '--workspaces' : '--no-workspaces';
 }
 
 /**
- * Environment for the `create-nx-workspace` invocation that deterministically
- * pins the scaffolded workspace shape.
+ * Environment for the `create-nx-workspace` invocation, with the coding-agent
+ * signals stripped so the scaffolded workspace shape comes from the CLI flags
+ * alone (see {@link workspaceFlags}).
  *
  * `create-nx-workspace` switches to an "agent" mode when it detects a coding
- * agent via `CLAUDECODE`/`OPENCODE`, and that mode's non-interactive defaults
- * pick the modern package-manager-workspaces (TS solution) setup, whereas the
- * classic non-interactive defaults produce an integrated, `tsconfig.base.json`
- * paths workspace. The CLI flags above do not override this, so we drive it
- * directly — setting the signal for `ts-solution` and stripping it for
- * `tsconfig-paths` — which makes the shape reproducible regardless of whether
- * the suite itself happens to run under an agent.
+ * agent via `CLAUDECODE`/`OPENCODE`, and that mode is not a stable base for a
+ * test harness: as of 23.1 it rewrites `--preset apps` into
+ * `--template nrwl/empty-template` and *downloads* the workspace from GitHub
+ * instead of generating it. That makes every run depend on an unauthenticated
+ * network fetch (which fails under CI rate limits) and on the current HEAD of an
+ * external repository, so the workspace under test could change without a commit
+ * here.
+ *
+ * The classic flow needs no such signal to produce either shape: it derives both
+ * from the flags we already pass — `--workspaces` gives package-manager
+ * workspaces with the Nx config in `package.json` (the TS solution setup), and
+ * `--no-workspaces` defaults `useProjectJson` to true, giving the integrated
+ * `tsconfig.base.json` paths workspace.
  */
-function createWorkspaceEnv(workspaceType: WorkspaceType): NodeJS.ProcessEnv {
+function createWorkspaceEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
-  if (workspaceType === 'ts-solution') {
-    env.CLAUDECODE = '1';
-  } else {
-    delete env.CLAUDECODE;
-    delete env.CLAUDE_CODE;
-    delete env.OPENCODE;
-  }
+  delete env.CLAUDECODE;
+  delete env.CLAUDE_CODE;
+  delete env.OPENCODE;
 
   return env;
 }
@@ -113,7 +117,7 @@ export function createTestProject(
     {
       cwd: dirname(projectDirectory),
       stdio: 'inherit',
-      env: createWorkspaceEnv(workspaceType),
+      env: createWorkspaceEnv(),
     },
   );
   console.log(
