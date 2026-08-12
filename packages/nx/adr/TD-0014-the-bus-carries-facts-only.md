@@ -71,11 +71,18 @@ grow the stack (verified against 10 000 nested publishes).
 during delivery takes effect immediately, and subscribing during delivery does
 not join the round in progress.
 
-**5. The test double is the production class.** `InMemoryEventBus` is what tests
-use. Nothing about timing differs, which is what stops "works in production, not
+**5. The test double is the production class.** `DomainEventBus` over the
+in-memory transport is what tests use. Nothing about timing differs, which is what stops "works in production, not
 in tests" from being possible at all.
 
-**6. Handlers are registered by an explicit call.** No decorators, no
+**6. Reach is a transport, not another bus.** `EventTransport` has two methods —
+`send` and `receive` — and the bus talks to subscribers only through it, its own
+publishes included. Growing past one JavaScript context is then a matter of
+supplying a different adapter, with no subscriber affected. An adapter **must
+loop back** (the bus has no other path to its own subscribers) and, once a
+process boundary is crossed, carries only data that survives serialisation.
+
+**7. Handlers are registered by an explicit call.** No decorators, no
 `reflect-metadata`, no metadata written onto prototypes: those need a polyfill in
 React Native, break tree-shaking, hide registration from the reader, and tie a
 class to one channel forever.
@@ -98,6 +105,10 @@ class to one channel forever.
   the type of the event already scopes it, and a channel string invites the
   "everything is a topic" design the bus is meant to avoid. An adapter may add
   them; the port stays narrow.
+- **A second bus implementation per reach** (one for a window, one for frames,
+  one for a socket). Every one of them would restate the delivery guarantees, and
+  they would drift. Reach is separated instead: one bus, an `EventTransport`
+  behind it.
 - **A wildcard subscription** (`on('*')`). Handy for logging, impossible to type
   well. Wrap the bus in a decorator instead.
 
@@ -116,8 +127,13 @@ class to one channel forever.
   default means unhandled errors reach the platform's reporter instead.
 - A handler doing slow work does its own scheduling — the bus does not await it,
   and a rejected promise is reported, not lost.
-- Cross-process delivery (a worker, a micro-frontend, a socket) is another
-  implementation of the same port; the in-memory one stays the default.
+- Cross-process delivery (a worker, a micro-frontend, a socket) is an
+  `EventTransport` adapter; `InMemoryEventTransport` stays the default.
+- Micro-frontends in one `window` share an _instance_ of the bus, handed down by
+  the host — a second transport is the answer to a second context, not to a
+  second bundle.
+- Events that may cross a boundary hold plain data, and evolve additively: a
+  bundle already in a user's browser cannot be recompiled.
 
 ## Signals you are violating it
 

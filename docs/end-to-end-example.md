@@ -330,9 +330,11 @@ export class CoreBeneficiariesFacade implements BeneficiariesFacade {
 ## 6. Composition root
 
 ```ts
-const bus = new InMemoryEventBus<AppEvent>((error, event) =>
-  logger.error(`Handler failed on ${event.type}`, error),
-);
+const bus = new DomainEventBus<AppEvent>({
+  // A different transport here is all it takes to reach frames, tabs or a worker.
+  onError: (error, event) =>
+    logger.error(`Handler failed on ${event.type}`, error),
+});
 
 container.bind(EventBusPort.$).toConstantValue(bus);
 container

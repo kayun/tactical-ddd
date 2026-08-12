@@ -9,7 +9,7 @@
  */
 import { AggregateRoot, type DomainEvent } from './aggregate-root.js';
 import { DomainError } from './domain-error.js';
-import { type EventBus, InMemoryEventBus } from './event-bus.js';
+import { type EventBus, DomainEventBus } from './event-bus.js';
 import type { Command, Facade, Outcome, Query, Watch } from './facade.js';
 import { type Loadable, LoadStatus } from './loadable.js';
 import type { Repository } from './repository.js';
@@ -329,7 +329,7 @@ class InMemoryBeneficiaryRepository implements BeneficiaryRepositoryPort {
 // ─── the whole thing, wired and exercised ────────────────────────────────────
 
 const wire = () => {
-  const bus = new InMemoryEventBus<BeneficiaryEvent>();
+  const bus = new DomainEventBus<BeneficiaryEvent>();
   const repository = new InMemoryBeneficiaryRepository();
   const facade: BeneficiariesFacade = new CoreBeneficiariesFacade(
     repository,

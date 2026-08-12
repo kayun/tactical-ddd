@@ -27,7 +27,7 @@ The suite is being built out incrementally. Primitives currently available:
 - [`Loadable`](#loadable) — a value together with the state of getting it, whatever the source.
 - [`Facade`](#facade) — a domain's public surface, with reads and writes separated by type.
 - [`Repository` / `KeyValueStore`](#repository-and-keyvaluestore) — the two ways to keep things, told apart by the compiler.
-- [`EventBus`](#eventbus) — facts between domains, with the delivery contract written down.
+- [`EventBus`](#eventbus) — facts between domains, with the delivery contract written down, over a swappable [`EventTransport`](#eventbus).
 
 > Aggregate roots and domain events are planned. This document covers what ships today.
 
@@ -466,13 +466,13 @@ export interface EventBus<TEvent extends DomainEvent = DomainEvent> {
 ```
 
 ```ts
-import { InMemoryEventBus, type DomainEvent } from '@tactical-ddd/core';
+import { DomainEventBus, type DomainEvent } from '@tactical-ddd/core';
 
 type BeneficiaryEvent =
   | DomainEvent<'BeneficiaryAdded', { id: string }>
   | DomainEvent<'BeneficiaryRemoved', { id: string }>;
 
-const bus = new InMemoryEventBus<BeneficiaryEvent>(reportToLogger);
+const bus = new DomainEventBus<BeneficiaryEvent>({ onError: reportToLogger });
 
 const stop = bus.on('BeneficiaryRemoved', async (event) => {
   // `event` is narrowed — no cast, and `event.id` is typed.
@@ -494,7 +494,23 @@ The delivery contract is part of the type, not folklore:
 - **The test double is this class.** No timing differs between test and production, which is what prevents a bus that works in one and not the other.
 - **Registration is an explicit call** — no decorators and no `reflect-metadata`, which need a polyfill in React Native and hide registration from the reader.
 
-Cross-process delivery — a worker, a micro-frontend, a socket — is another implementation of the same port.
+**Reach is the transport's business.** The bus owns typing, ordering and error isolation; how far an event travels belongs to an `EventTransport`, which defaults to this JavaScript context:
+
+```ts
+export interface EventTransport {
+  send(event: DomainEvent): void;
+  receive(handler: (event: DomainEvent) => void): Unsubscribe;
+}
+
+// Same bus, wider reach — no subscriber changes.
+const bus = new DomainEventBus<AppEvent>({
+  transport: new BroadcastChannelTransport('app'),
+});
+```
+
+Two rules an adapter has to honour. **It must loop back** — whatever is sent has to reach the sending side's receivers too, because the bus has no second path to its own subscribers; over a channel that excludes the sender (`BroadcastChannel` does) the adapter delivers locally _and_ forwards. And **what crosses a process boundary must survive the trip**: in-process the event is passed by reference, anywhere else it is serialised, so such events carry plain data — no value objects, no `Date`, no functions.
+
+Micro-frontends sharing one `window` do not need another transport — they need one _instance_ of the bus, provided by the host.
 
 ## Entity or value object?
 
