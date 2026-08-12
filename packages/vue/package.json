@@ -1,6 +1,6 @@
 {
   "name": "@tactical-ddd/vue",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "license": "MIT",
   "keywords": [
     "vue",
@@ -42,7 +42,7 @@
     "!**/*.tsbuildinfo"
   ],
   "peerDependencies": {
-    "@tactical-ddd/core": "^0.1.5",
+    "@tactical-ddd/core": "^0.2.0",
     "vue": "^3.3.0"
   },
   "nx": {

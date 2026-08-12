@@ -1,3 +1,44 @@
+## 0.2.0 (2026-08-12)
+
+### 🚀 Features
+
+- **core:** add core types for remote data, subscribable streams, and facades ([44da2a0](https://github.com/kayun/tactical-ddd/commit/44da2a0))
+- **core:** add comprehensive tests for `Facade` behaviors and type safety ([9721c07](https://github.com/kayun/tactical-ddd/commit/9721c07))
+- **core:** add `@tactical-ddd/source` export condition in `package.json` ([08d9ba4](https://github.com/kayun/tactical-ddd/commit/08d9ba4))
+- **core:** introduce `Repository` and `KeyValueStore` interfaces ([c6566fe](https://github.com/kayun/tactical-ddd/commit/c6566fe))
+- **core:** add `AggregateRoot` implementation with tests and export ([b2ac347](https://github.com/kayun/tactical-ddd/commit/b2ac347))
+- **core:** add `EventBus` and `InMemoryEventBus` implementation ([5fb1563](https://github.com/kayun/tactical-ddd/commit/5fb1563))
+- **core:** enhance `EventBus` with customizable transport and error handling ([07dced3](https://github.com/kayun/tactical-ddd/commit/07dced3))
+- **core:** add `InMemoryEventTransport` implementation and tests ([6af7557](https://github.com/kayun/tactical-ddd/commit/6af7557))
+- **domain:** update `<%= interfaceName %>` to use `@tactical-ddd` facade types ([c22cc59](https://github.com/kayun/tactical-ddd/commit/c22cc59))
+- **domain:** add `query` and `watch` methods to `<%= interfaceName %>` facade ([798248b](https://github.com/kayun/tactical-ddd/commit/798248b))
+- **domain:** declare runtime kernel dependencies for generated libraries ([55122bb](https://github.com/kayun/tactical-ddd/commit/55122bb))
+- **domain:** update facade scaffolding to use runtime kernel types ([6cd5f45](https://github.com/kayun/tactical-ddd/commit/6cd5f45))
+- **eslint:** improve module boundary rules for nested folder imports in Clean Architecture ([0c6f480](https://github.com/kayun/tactical-ddd/commit/0c6f480))
+- **eslint:** add Vue support to external require exemption ([b9236b7](https://github.com/kayun/tactical-ddd/commit/b9236b7))
+- **eslint:** extend ignored files to include generator templates ([9266773](https://github.com/kayun/tactical-ddd/commit/9266773))
+- **init:** add Vue preset to workspace generator ([3424a0b](https://github.com/kayun/tactical-ddd/commit/3424a0b))
+- **nx:** add `agents-context-sync` generator for tactical ddd ADR management ([a356a3c](https://github.com/kayun/tactical-ddd/commit/a356a3c))
+- **nx:** add Tactical DDD architecture decision records and syncing mechanism ([84e89d6](https://github.com/kayun/tactical-ddd/commit/84e89d6))
+- **nx:** enhance `sync-publish-package-json` and refactor `init` generator for ADR syncing ([abae8a1](https://github.com/kayun/tactical-ddd/commit/abae8a1))
+- **nx:** document TD-0008, TD-0009, and TD-0010 in new ADRs for tactical DDD design ([b40f563](https://github.com/kayun/tactical-ddd/commit/b40f563))
+- **nx:** strip `@tactical-ddd/source` condition from `exports` in publish package.json ([71227b3](https://github.com/kayun/tactical-ddd/commit/71227b3))
+- **react:** add `useObserved` hook for subscribing to domain streams ([24e0cb1](https://github.com/kayun/tactical-ddd/commit/24e0cb1))
+- **react:** add `@tactical-ddd/core` as peerDependency and external in Vite config ([ca50151](https://github.com/kayun/tactical-ddd/commit/ca50151))
+- **react:** add `useWatch` hook for reactive watch state management ([e904c02](https://github.com/kayun/tactical-ddd/commit/e904c02))
+- **scripts:** rewrite local dependencies to exact e2e version before release ([d610486](https://github.com/kayun/tactical-ddd/commit/d610486))
+- **utils:** add core runtime dependency management utilities ([5e4566d](https://github.com/kayun/tactical-ddd/commit/5e4566d))
+- **vue:** add Vue package with library setup and tooling ([8ce6d2a](https://github.com/kayun/tactical-ddd/commit/8ce6d2a))
+- **vue:** add `useObserved` composable for domain stream subscriptions ([05b4e58](https://github.com/kayun/tactical-ddd/commit/05b4e58))
+- **vue:** enhance package metadata, build config, and tooling ([40abfac](https://github.com/kayun/tactical-ddd/commit/40abfac))
+- **vue:** add `useWatch` composable for reactive watch management ([edcbcc8](https://github.com/kayun/tactical-ddd/commit/edcbcc8))
+- **vue:** add custom resolve conditions to support sibling package imports in tests ([07407fd](https://github.com/kayun/tactical-ddd/commit/07407fd))
+- **vue:** integrate Vue preset into domain generator ([f547331](https://github.com/kayun/tactical-ddd/commit/f547331))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.1.5 (2026-08-05)
 
 This was a version bump only, there were no code changes.
