@@ -1,4 +1,8 @@
 import type { DomainEvent } from './aggregate-root.js';
+import {
+  type EventTransport,
+  InMemoryEventTransport,
+} from './event-transport.js';
 import type { Unsubscribe } from './unsubscribe.js';
 
 /**
@@ -47,15 +51,28 @@ function reportUnhandled(error: unknown): void {
   });
 }
 
+export type EventBusOptions<TEvent extends DomainEvent> = Readonly<{
+  /** Where events travel. Defaults to this JavaScript context only. */
+  transport?: EventTransport;
+
+  /**
+   * Where a failed handler is reported. Defaults to rethrowing in a microtask,
+   * so the platform surfaces it rather than the bus swallowing it.
+   */
+  onError?: (error: unknown, event: TEvent) => void;
+}>;
+
 /**
- * The bus for a single process: publishing reaches every listener registered at
- * that moment, in the order they subscribed.
+ * The bus every workspace starts with: subscriptions by event type, delivered
+ * over an {@link EventTransport}.
  *
- * Three guarantees, each one a failure mode seen in the wild:
+ * Reach is the transport's business — swap {@link InMemoryEventTransport} for
+ * one over frames, tabs or a socket and nothing here changes. What stays with
+ * the bus are the guarantees:
  *
  * - **A failing handler cannot take the bus down.** Errors — thrown or rejected
- *   — are reported through `onError` and delivery continues. A subscription is
- *   never dropped because it once threw.
+ *   — go to `onError` and delivery continues. A subscription is never dropped
+ *   because it once threw.
  * - **Delivery is synchronous, and re-entrant publishes are queued.** A handler
  *   that publishes gets its event delivered after the current one finishes, so
  *   the order is the order things happened, and a chain of events cannot grow
@@ -64,30 +81,34 @@ function reportUnhandled(error: unknown): void {
  *   and production, which is what stops a bus from working in one and not the
  *   other.
  */
-export class InMemoryEventBus<
+export class DomainEventBus<
   TEvent extends DomainEvent = DomainEvent,
 > implements EventBus<TEvent> {
   private readonly handlers = new Map<string, Set<EventHandler<TEvent>>>();
 
   private readonly pending: TEvent[] = [];
 
+  private readonly transport: EventTransport;
+
+  private readonly onError: (error: unknown, event: TEvent) => void;
+
   private delivering = false;
 
-  constructor(
-    private readonly onError: (
-      error: unknown,
-      event: TEvent,
-    ) => void = reportUnhandled,
-  ) {}
+  constructor(options: EventBusOptions<TEvent> = {}) {
+    this.transport = options.transport ?? new InMemoryEventTransport();
+    this.onError = options.onError ?? reportUnhandled;
+
+    // Everything reaches subscribers the same way, including this bus's own
+    // publishes — one path in, so a remote event behaves like a local one.
+    this.transport.receive((event) => this.enqueue(event as TEvent));
+  }
 
   publish(event: TEvent): void {
-    this.pending.push(event);
-    this.deliver();
+    this.transport.send(event);
   }
 
   publishAll(events: readonly TEvent[]): void {
-    this.pending.push(...events);
-    this.deliver();
+    events.forEach((event) => this.transport.send(event));
   }
 
   on<TType extends TEvent['type']>(
@@ -108,7 +129,9 @@ export class InMemoryEventBus<
     };
   }
 
-  private deliver(): void {
+  private enqueue(event: TEvent): void {
+    this.pending.push(event);
+
     if (this.delivering) {
       // A handler published while we were delivering; the loop below will pick
       // it up rather than recursing into it.
@@ -118,18 +141,18 @@ export class InMemoryEventBus<
     this.delivering = true;
 
     try {
-      let event = this.pending.shift();
+      let next = this.pending.shift();
 
-      while (event !== undefined) {
-        this.deliverOne(event);
-        event = this.pending.shift();
+      while (next !== undefined) {
+        this.deliver(next);
+        next = this.pending.shift();
       }
     } finally {
       this.delivering = false;
     }
   }
 
-  private deliverOne(event: TEvent): void {
+  private deliver(event: TEvent): void {
     const forType = this.handlers.get(event.type);
 
     if (forType === undefined) {
