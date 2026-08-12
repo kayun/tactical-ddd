@@ -132,10 +132,10 @@ hoc:
   ([TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md)): it names the
   consistency boundary and collects the events a change produced, so there is
   both a rule it states and code written against it.
-- **Domain events** — the shape is shipped (`DomainEvent`, recorded by an
-  aggregate root); what is still absent is the bus that carries them, which
-  stays the workspace's choice
-  ([TD-0009](./TD-0009-notifications-go-to-the-bus.md)).
+- **Domain events** — shipped in full: `DomainEvent` recorded by an aggregate
+  root, and `EventBus` with an in-memory implementation carrying them
+  ([TD-0014](./TD-0014-the-bus-carries-facts-only.md)). Only cross-process
+  transports stay the workspace's own.
 - **Repository** — now shipped, on the third ground above: `Repository` and
   `KeyValueStore` exist to make the wrong one refuse to compile
   ([TD-0012](./TD-0012-what-a-repository-is.md)). Domain-specific queries are

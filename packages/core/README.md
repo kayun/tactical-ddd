@@ -27,6 +27,7 @@ The suite is being built out incrementally. Primitives currently available:
 - [`Loadable`](#loadable) — a value together with the state of getting it, whatever the source.
 - [`Facade`](#facade) — a domain's public surface, with reads and writes separated by type.
 - [`Repository` / `KeyValueStore`](#repository-and-keyvaluestore) — the two ways to keep things, told apart by the compiler.
+- [`EventBus`](#eventbus) — facts between domains, with the delivery contract written down.
 
 > Aggregate roots and domain events are planned. This document covers what ships today.
 
@@ -448,6 +449,52 @@ Worth knowing:
 - **Domain queries belong on the port**, not on the base type: `findOverdue()` is added by the interface that extends `Repository`, because only the domain can name it.
 - **A read-only view is `Pick<KeyValueStore<T>, 'get'>`** rather than another named type.
 - **Neither is for a single value with no key** (a session, the active account) or for a question about the present (`getCurrentIdentity()`) — those are state and query ports, and calling them repositories is what blurs the word.
+
+### EventBus
+
+Domains that must not know about each other still have to react to each other. A bus carries the facts one of them states, to whoever is listening — with no reply, no correlation id and no timeout, because a caller that needs an answer is asking a question and should call a facade instead.
+
+```ts
+export interface EventBus<TEvent extends DomainEvent = DomainEvent> {
+  publish(event: TEvent): void;
+  publishAll(events: readonly TEvent[]): void;
+  on<TType extends TEvent['type']>(
+    type: TType,
+    handler: EventHandler<Extract<TEvent, { type: TType }>>,
+  ): Unsubscribe;
+}
+```
+
+```ts
+import { InMemoryEventBus, type DomainEvent } from '@tactical-ddd/core';
+
+type BeneficiaryEvent =
+  | DomainEvent<'BeneficiaryAdded', { id: string }>
+  | DomainEvent<'BeneficiaryRemoved', { id: string }>;
+
+const bus = new InMemoryEventBus<BeneficiaryEvent>(reportToLogger);
+
+const stop = bus.on('BeneficiaryRemoved', async (event) => {
+  // `event` is narrowed — no cast, and `event.id` is typed.
+  await payments.cancelDraftsFor(event.id);
+});
+
+// After the write succeeded, never before it.
+await repository.save(beneficiary);
+bus.publishAll(beneficiary.pullEvents());
+
+stop(); // subscriptions are owned by whoever made them
+```
+
+The delivery contract is part of the type, not folklore:
+
+- **A failing subscriber cannot take the bus down.** Thrown errors and rejected promises go to `onError`; the other handlers still run, `publish` does not throw, and a handler that failed **stays subscribed**. Left unconfigured, `onError` rethrows in a microtask so the platform reports it rather than the bus swallowing it.
+- **Delivery is synchronous, re-entrant publishing is queued.** Handlers run inside `publish` in subscription order; an event published _by_ a handler is delivered after the current one, so the sequence matches what happened and a chain cannot grow the stack.
+- **Subscribing returns `Unsubscribe`**, safe to call twice. Unsubscribing during delivery takes effect immediately; subscribing during delivery does not join the round in progress.
+- **The test double is this class.** No timing differs between test and production, which is what prevents a bus that works in one and not the other.
+- **Registration is an explicit call** — no decorators and no `reflect-metadata`, which need a polyfill in React Native and hide registration from the reader.
+
+Cross-process delivery — a worker, a micro-frontend, a socket — is another implementation of the same port.
 
 ## Entity or value object?
 

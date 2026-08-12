@@ -24,6 +24,7 @@ violating it** (how a violation looks in a diff).
 | [TD-0011](./TD-0011-one-primitive-per-concept.md)             | Each domain concept maps to one kernel primitive                         | adding a class to `domain`, or deciding entity vs value object         |
 | [TD-0012](./TD-0012-what-a-repository-is.md)                  | A repository is identity, not storage                                    | naming a new port, or adding a method to a repository                  |
 | [TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md)       | An aggregate is the unit of change                                       | modelling a change that spans objects, or adding a repository          |
+| [TD-0014](./TD-0014-the-bus-carries-facts-only.md)            | The bus carries facts, and never fails loudly                            | publishing an event, subscribing to one, or replacing the bus          |
 
 ## Status vocabulary
 
