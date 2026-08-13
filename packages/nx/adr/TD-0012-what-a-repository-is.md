@@ -122,7 +122,9 @@ without changing the port and all its callers.
 ## Consequences for code
 
 - A new port is named for its role before it is written: repository, state port,
-  query port, or gateway.
+  query port, or gateway. Its _direction_ then decides which layer implements it —
+  outbound in `infrastructure`, inbound in `application`
+  ([TD-0004](./TD-0004-inward-dependencies-inside-core.md)).
 - Repository methods speak the domain's language; the key format, the table, the
   serialisation and the access policy stay inside the adapter.
 - Ports are asynchronous even when the current adapter is not.

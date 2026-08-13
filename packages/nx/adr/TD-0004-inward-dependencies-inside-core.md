@@ -29,6 +29,28 @@ A port is declared where it is _needed_, its adapter lives where it is
 _implemented_, and the two are connected by DI at the composition root — never by
 an import.
 
+**Which layer implements a port is decided by the port's direction, not by the
+fact that it is a port.** The two directions look alike in a type and belong in
+different folders:
+
+| Direction             | Who calls whom   | Implemented in   | Examples                                                    |
+| --------------------- | ---------------- | ---------------- | ----------------------------------------------------------- |
+| **driven** (outbound) | domain → outside | `infrastructure` | repository, OIDC client, live query, keychain, HTTP gateway |
+| **driving** (inbound) | outside → domain | `application`    | the facade; a narrow entry handed to a transport            |
+
+A driven port exists because the domain needs something done to the world, and
+its implementation is where the platform lives. A driving port is the opposite:
+somebody outside wants the domain to act, so its implementation is a way _in_ —
+which is why the facade sits in `application`, and why anything else shaped like
+the facade sits there too.
+
+The practical test is the class itself: **if it holds no platform detail, it is
+not an adapter.** A class that only translates one call into a use case is an
+entry point wearing an adapter's name, and putting it in `infrastructure/` makes
+that folder lie about what it contains. Note that a driving port is often
+declared elsewhere entirely — in `shared/contracts`, by the transport that wants
+to call in — and its implementation still belongs to the domain's `application`.
+
 ## Rejected alternatives
 
 - **Repository implementations in `domain`.** The classic active-record shape;
@@ -39,6 +61,12 @@ an import.
 - **Ports declared next to their adapters.** Reads naturally, but inverts
   ownership: the business layer would depend on infrastructure's idea of the
   interface, and swapping the adapter would change the port.
+- **"Every implementation of a port goes in `infrastructure`."** The rule as it
+  reads at first glance, and wrong for inbound ports: a class that implements
+  `AccessTokenProviderPort` by delegating to a use case has no platform in it, so
+  `infrastructure/` gains a file that no second platform would ever replace —
+  while `application/`, which owns every other way into the domain, is missing
+  one. Direction decides, not the word "port".
 
 ## Consequences for code
 
@@ -60,7 +88,11 @@ an import.
   need object literals, not mocking frameworks.
 - Anything platform-specific (keychain, filesystem, native modules) belongs in
   `infrastructure/` — which also means it is the part that a second platform
-  replaces wholesale.
+  replaces wholesale. The converse is the check to run before creating a file
+  there: if nothing in it would change on another platform, it does not belong.
+- Ways _into_ the domain live in `application/` next to the facade, even when the
+  port they satisfy is declared in another library. Their bodies delegate to use
+  cases, which is exactly what the facade does.
 
 ## Signals you are violating it
 
@@ -70,6 +102,10 @@ an import.
   (`../../infrastructure/...`) — allowed by the rules, forbidden by this record.
 - An entity or value object importing a client library.
 - A port interface declared in the `infrastructure/` folder.
+- A class in `infrastructure/` with no platform dependency — no client, no native
+  module, no file system — whose every method forwards to a use case.
+- A file in `infrastructure/` that a port to a second platform would keep
+  unchanged.
 - A use-case test that has to construct a real adapter to run.
 
 ## Related
