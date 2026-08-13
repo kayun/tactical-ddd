@@ -329,14 +329,47 @@ export class CoreBeneficiariesFacade implements BeneficiariesFacade {
 
 ## 6. Composition root
 
-```ts
-const bus = new DomainEventBus<AppEvent>({
-  // A different transport here is all it takes to reach frames, tabs or a worker.
-  onError: (error, event) =>
-    logger.error(`Handler failed on ${event.type}`, error),
-});
+The bus needs a DI token, and the token needs a home. It goes to
+`shared/contracts` — but typed with the base `DomainEvent`, because that library
+may not import a domain's contracts
+([TD-0005](../packages/nx/adr/TD-0005-shared-kernel-stays-business-agnostic.md)):
 
-container.bind(EventBusPort.$).toConstantValue(bus);
+```ts
+// libs/shared/contracts/src/lib/interfaces/event-bus.interface.ts
+import type { DomainEvent, EventBus } from '@tactical-ddd/core';
+
+/** One bus per application; the precise union of events is the consumer's business. */
+export type EventBusPort = EventBus<DomainEvent>;
+
+export const EventBusPort = { $: Symbol.for('EventBusPort') };
+```
+
+Only the application sees every domain, so only here can the union be assembled
+and the instance typed exactly:
+
+```ts
+// apps/mobile/src/app/composition-root.ts
+import type { AuthEvent } from '@bm/auth-contracts';
+import type { BeneficiaryEvent } from '@bm/beneficiaries-contracts';
+
+export type AppEvent = AuthEvent | BeneficiaryEvent;
+
+container
+  .bind<EventBus<AppEvent>>(EventBusPort.$)
+  .toDynamicValue(({ container }) => {
+    const logger = container
+      .get<LoggerPort>(LoggerPort.$)
+      .withContext('EventBus');
+
+    // The only place that knows how far events travel: pass a different
+    // transport here to reach frames, tabs or a worker.
+    return new DomainEventBus<AppEvent>({
+      onError: (error, event) =>
+        logger.error(`Handler failed on ${event.type}`, error),
+    });
+  })
+  .inSingletonScope();
+
 container
   .bind(BeneficiaryRepositoryPort.$)
   .to(SqliteBeneficiaryRepository)
@@ -345,10 +378,101 @@ container
   .bind(BeneficiariesFacade.$)
   .to(CoreBeneficiariesFacade)
   .inSingletonScope();
-
-// Reactors start here — and stop here.
-const subscriptions = [container.get(CancelDraftsOnBeneficiaryRemoved).start()];
 ```
+
+**Consumers narrow the generic to what they use.** The token is shared, the type
+is not: a use case declares the events it publishes, an event handler the ones it
+listens for. The result is a constructor that states which facts a class deals in
+— and full narrowing inside `on`, since DI checks no types at runtime.
+
+```ts
+@injectable()
+export class AddBeneficiaryUseCase {
+  constructor(
+    @inject(BeneficiaryRepositoryPort.$)
+    private readonly repository: BeneficiaryRepositoryPort,
+    @inject(EventBusPort.$)
+    private readonly bus: EventBus<BeneficiaryEvent>, // only its own events
+  ) {}
+}
+```
+
+**Subscriptions are a resource, and each has an owner.** Which owner depends on
+what the subscription exists for — three different lifetimes, routinely confused:
+
+| Lifetime    | Example                                     | Owner                                                        | Torn down on                                            |
+| ----------- | ------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------- |
+| application | `payments` reacting to `BeneficiaryRemoved` | composition root                                             | container disposal: unmount, a micro-frontend unloading |
+| session     | an outbox syncing the signed-in account     | whatever owns the session (a state machine, a session scope) | logout, account switch, reset                           |
+| screen      | `useWatch` in a component                   | the component                                                | unmount                                                 |
+
+The handler above is **application-level**: `payments` must react to a removed
+beneficiary regardless of who is signed in, so logging out changes nothing for
+it.
+
+```ts
+container.bind(BeneficiaryRemovedEventHandler).toSelf().inSingletonScope();
+
+// Live as long as the container does.
+const appSubscriptions = [
+  container.get(BeneficiaryRemovedEventHandler).start(),
+];
+```
+
+**Session-level subscriptions are held by whoever owns the session**, and the use
+case that ends it does not know they exist. It states a fact:
+
+```ts
+// libs/auth/core/src/lib/application/logout.use-case.ts
+async execute(): Promise<void> {
+  await this.tokens.remove(sub);
+  await this.oidc.revoke(refreshToken);
+
+  this.bus.publish({ type: 'SessionEnded', sub });   // and nothing else
+}
+```
+
+Tearing down is then the owner's job. With a state machine already governing the
+session, the subscriptions are a resource like any other — started on entry,
+stopped on exit:
+
+```ts
+@injectable()
+export class SessionSubscriptions {
+  private stops: Unsubscribe[] = [];
+
+  start(): void {
+    this.stops = [this.outbox.start(), this.pushTokens.start()];
+  }
+
+  stop(): void {
+    this.stops.forEach((stop) => stop());
+    this.stops = [];
+  }
+}
+```
+
+```ts
+[RootState.Active]: {
+  entry: 'startSessionSubscriptions',
+  exit: 'stopSessionSubscriptions',
+}
+```
+
+Without such an owner, the composition root can react to the fact instead —
+legitimate, and it relies on a guarantee the bus makes explicitly: an unsubscribe
+during delivery takes effect at once, so a handler may stop itself from inside
+its own callback.
+
+```ts
+bus.on('SessionStarted', () => sessionSubscriptions.start());
+bus.on('SessionEnded', () => sessionSubscriptions.stop());
+```
+
+What not to do: pass the list of subscriptions into a domain, inject a
+`SubscriptionRegistry` into a use case, or grow a `stopListening()` method on a
+facade. A use case reports what happened; who reacts is not its concern, and the
+moment it manages listeners it is managing infrastructure.
 
 ## 7. The neighbouring domain
 
@@ -357,7 +481,7 @@ list, because it needs _what happened_, not _how things are_
 ([TD-0009](../packages/nx/adr/TD-0009-notifications-go-to-the-bus.md)).
 
 ```ts
-export class CancelDraftsOnBeneficiaryRemoved {
+export class BeneficiaryRemovedEventHandler {
   constructor(
     private readonly bus: EventBus<BeneficiaryEvent>,
     private readonly cancelDrafts: CancelDraftsUseCase,
@@ -373,6 +497,28 @@ export class CancelDraftsOnBeneficiaryRemoved {
 
 It knows `beneficiaries` only through its contracts — a type, not an
 implementation ([TD-0003](../packages/nx/adr/TD-0003-cross-domain-through-contracts.md)).
+
+The class is named `*EventHandler` after the fact it handles, and it lives in
+`application`: it calls a use case, so it is not UI, and it decides nothing
+itself, so it is not domain. When one domain handles the same fact in two ways,
+the action disambiguates — `CancelDraftsOnBeneficiaryRemovedEventHandler`. A
+handler with no dependencies does not need a class at all; a line in the
+composition root is enough:
+
+```ts
+bus.on('BeneficiaryRemoved', ({ beneficiaryId }) =>
+  container.get(CancelDraftsUseCase).execute(beneficiaryId),
+);
+```
+
+Two neighbours of this role are worth telling apart before reaching for it, since
+both start out looking like a handler:
+
+- a **process manager** carries state and time — it waits for several facts, sets
+  timeouts, and compensates when a step fails. That is a different design, taken
+  on deliberately, not a handler that grew fields.
+- a **projector** does not call a use case; it maintains a read model from
+  events, so what it owns is a table, not a decision.
 
 ## 8. The screen
 

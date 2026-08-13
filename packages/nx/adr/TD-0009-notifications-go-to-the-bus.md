@@ -83,8 +83,22 @@ To choose a channel, three questions:
 - A domain may listen to another domain's event, update its own source of truth,
   and let its own watch emit the new state. One channel in, the other out; this
   chain is not duplication.
-- Bus subscriptions live in `application` (a use case reacting to a fact), not in
-  `ui`. A component subscribes to watches only.
+- Bus subscriptions live in `application`, not in `ui`. A component subscribes to
+  watches only.
+- What subscribes is named `*EventHandler`, after the fact it handles
+  (`BeneficiaryRemovedEventHandler`), and it only connects the fact to a use
+  case — it decides nothing itself, which is why it is not domain code. Where one
+  domain handles the same fact twice, the action disambiguates
+  (`CancelDraftsOnBeneficiaryRemovedEventHandler`). With nothing to inject, a
+  subscription in the composition root needs no class at all.
+- Two roles look like a handler at first and are not, so they are taken on
+  deliberately: a **process manager** carries state and time (waits for several
+  facts, sets timeouts, compensates), and a **projector** maintains a read model
+  from events instead of calling a use case.
+- A subscription's lifetime belongs to whoever created it: application-wide
+  handlers to the composition root, per-session ones to whatever owns the session
+  (a state machine's `entry`/`exit`, a session scope). A use case that ends a
+  session publishes the fact and knows nothing about listeners.
 
 ## Signals you are violating it
 
