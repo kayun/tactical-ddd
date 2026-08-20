@@ -52,3 +52,7 @@ vite.config.*.timestamp*
 test-output
 
 vitest.config.*.timestamp*
+
+# graphify knowledge graph (regenerate with: graphify update .)
+graphify-out/
+.mcp.json
