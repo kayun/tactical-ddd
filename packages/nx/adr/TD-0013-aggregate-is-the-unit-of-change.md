@@ -137,3 +137,4 @@ every write is large. When in doubt, split and connect with events.
 - [TD-0011](./TD-0011-one-primitive-per-concept.md) — the primitives an aggregate is built from
 - [TD-0012](./TD-0012-what-a-repository-is.md) — why the repository follows the aggregate, not the class
 - [TD-0009](./TD-0009-notifications-go-to-the-bus.md) — how the world outside the boundary catches up
+- [TD-0015](./TD-0015-announcing-is-not-part-of-the-write.md) — who publishes, what the gap after `save` costs, and when a fact needs an outbox

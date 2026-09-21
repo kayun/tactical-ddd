@@ -153,3 +153,4 @@ class to one channel forever.
 - [TD-0009](./TD-0009-notifications-go-to-the-bus.md) — what belongs on the bus rather than in a watch
 - [TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md) — who records the facts and when they are published
 - [TD-0010](./TD-0010-commands-return-no-data.md) — why a request is a facade call, not a message
+- [TD-0015](./TD-0015-announcing-is-not-part-of-the-write.md) — what these guarantees mean for the command that called `publishAll`
