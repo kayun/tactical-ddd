@@ -16,7 +16,7 @@ Read this before adding or moving any file.
 
 1. **Never hand-roll a library or domain.** Use the generators (see [§8](#8-adding-things-use-the-generators)). They create the right folders, `tags`, tsconfig, and boundary rules.
 2. **The dependency rule points inward and never sideways.** A domain may depend on the shared kernel and on *other domains' contracts only* — never on another domain's implementation.
-3. **`contracts` = types only.** No runtime code, no imports of implementations.
+3. **`contracts` = types only**, plus two kinds of inert constants: DI tokens and string `enum`s. No classes, no functions, no imports of implementations.
 4. **`core` = framework-agnostic business logic.** No React, no DOM, no HTTP client instances — those are injected.
 5. **A domain's only public surface is its facade** (declared in `contracts`, implemented in `core`). Consumers depend on the interface, never reach inside.
 6. **When unsure where something goes, consult [§7](#7-where-do-i-put-) before writing it.**
@@ -97,7 +97,7 @@ Global building blocks reused everywhere. **No business logic.**
 ### `<domain>/contracts` — the domain's public boundary
 - The domain's **facade interface** (`<Name>Facade`) and its DI token.
 - Domain events, DTOs, and the public types other domains are allowed to consume.
-- **Types only.** May import `shared/contracts`. Nothing may reach past this into `core`.
+- **Types only**, plus DI tokens and string `enum`s (statuses, kinds — closed sets of published values). No behaviour. May import `shared/contracts`. Nothing may reach past this into `core`.
 
 ### `<domain>/core` — the business logic (framework-agnostic)
 Pure domain logic + the facade implementation. Internally split into Clean
@@ -215,7 +215,7 @@ Add files *within* the generated layers by hand, following [§7](#7-where-do-i-p
 
 **Don't**
 - Import another domain's `core`/`ui`/`features` (use its `contracts`).
-- Put business logic in `shared/*` or runtime code in any `contracts`.
+- Put business logic in `shared/*`, or a `class`/`function` in any `contracts`.
 - Import outer layers from inner ones inside `core`.
 - Edit `tags` or relax ESLint boundaries to force a forbidden import.
 

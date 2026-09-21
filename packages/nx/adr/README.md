@@ -11,7 +11,7 @@ violating it** (how a violation looks in a diff).
 
 | ID                                                            | Decision                                                                 | Read it before…                                                        |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| [TD-0001](./TD-0001-contracts-contain-types-only.md)          | Contracts contain types only, plus DI tokens                             | adding anything to a `contracts` library                               |
+| [TD-0001](./TD-0001-contracts-contain-types-only.md)          | Contracts contain types only, plus DI tokens and string enums            | adding anything to a `contracts` library                               |
 | [TD-0002](./TD-0002-facade-is-the-only-public-surface.md)     | A domain's only public surface is its facade                             | exporting something new from `core`, or consuming another domain       |
 | [TD-0003](./TD-0003-cross-domain-through-contracts.md)        | Cross-domain communication goes through contracts, never via shared code | two domains needing the same data, or reaching for a `shared/*` module |
 | [TD-0004](./TD-0004-inward-dependencies-inside-core.md)       | Inside `core`, dependencies point inward                                 | adding a port, an adapter, or a use case                               |
