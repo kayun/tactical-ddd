@@ -115,13 +115,38 @@ core/src/lib/
   at the composition root, not imported across layers. (Enforced by lint.)
 - Define **ports** (repository/gateway interfaces) in `domain`/`application`; put
   their concrete adapters in `infrastructure`.
+- `core` exports a **`ContainerModule`** — the domain's bindings (facade, use
+  cases, adapters to ports) as a deferred declaration the application loads. It
+  never instantiates a `Container` (no `new Container()`, `load`, or `get`
+  outside tests): bindings of one domain resolve against other domains'
+  facades, so only one `Container`, at the application's composition root, can
+  hold them all.
+- A machine that models **business state** (a session, the stages of a sync run)
+  lives in `core/src/lib/application`, its actor held by an application service
+  and published through the facade as watches and commands.
 - `core` may import `shared/*`, its own `contracts`, and other domains' `contracts`.
 
 ### `<domain>/ui` & `<domain>/features` *(generated only with `--preset`)*
 - **ui**: presentational components/hooks — no business logic, no direct I/O.
-- **features**: state management, DI containers/composition root, framework bindings,
-  wiring the facade to the UI.
+- **features**: framework bindings — providers/context, hooks over the facade
+  (`useWatch`), and **screen flows**: state that exists for a screen and dies with
+  it (a wizard's steps, submit/retry), even when written as a machine. A screen
+  flow reaches every domain, its own included, through facades from `contracts`;
+  a business rule inside one is a leaked rule — the domain returns an outcome,
+  the flow branches on it.
+- **features never instantiates a `Container` either** — same rule as `core`.
+  It may export its own `ContainerModule` (machine factories, view-model
+  services); the application's composition root loads it next to the domain's
+  `core` module. Components reach the one container through the provider the
+  application mounted (`useContainer`, `useInjection`).
 - May import `shared/*`, own `contracts`, own `core`, and other domains' `contracts`.
+
+### The composition root is the application
+One `Container` per application, in `apps/<app>/`: it loads every domain's `core`
+module (and `features` module, if any), binds the shared infrastructure, starts
+application-wide event handlers (`start*()` exported by the domain), and disposes
+all of it on teardown. Libraries declare bindings in `ContainerModule`s; only the
+application instantiates the `Container` that resolves them.
 
 ---
 
@@ -163,7 +188,10 @@ direct calls.
 | A pure helper (format/parse/transform) | `shared/utils` | Or a domain-local helper inside `core` if domain-specific. |
 | A global HTTP/WS/storage client | `shared/infrastructure` | Implements a `shared/contracts` interface. |
 | A presentational component / hook | `<domain>/ui` | No business logic. |
-| State, DI container, framework binding | `<domain>/features` | The composition root lives here. |
+| A screen flow (wizard steps, submit/retry), a provider, a hook over the facade | `<domain>/features` | Talks to domains through facades only; no business rule inside. |
+| A business-state machine (session, sync run) | `<domain>/core` → `src/lib/application` | Published through the facade as watches + commands. |
+| A domain's DI bindings | `<domain>/core` (a `ContainerModule`) | `features` may add its own module; neither instantiates a `Container`. |
+| The `Container` / composition root | `apps/<app>/` | Loads every module, starts handlers, owns disposal. |
 | Something used by two domains | `shared/*` **or** each domain's `contracts` | If it's business language, prefer contracts + events; if it's generic infra, shared. |
 
 If a piece doesn't fit any cell, the modeling is off — reconsider the boundary

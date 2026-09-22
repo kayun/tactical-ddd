@@ -75,11 +75,11 @@ Every business domain (e.g., `auth`, `payments`, `beneficiaries`) is bounded and
   - _Tags_: `scope:domain`, `type:contracts`
   - _Dependencies_: Can import from `libs/shared/contracts`.
 - **`libs/[domain-name]/core`**
-  - _Purpose_: Pure business logic (Entities, Value Objects, Use Cases, Repositories/Ports interfaces). Framework-agnostic.
+  - _Purpose_: Pure business logic (Entities, Value Objects, Use Cases, Repositories/Ports interfaces), business-state machines behind the facade, and the domain's `ContainerModule` (a declaration of bindings; it never instantiates a `Container`). Framework-agnostic.
   - _Tags_: `scope:domain`, `type:core`
   - _Dependencies_: Can import from `libs/shared/*` and `libs/[domain-name]/contracts`.
 - **`libs/[domain-name]/features`** _(Generated only when `--preset` flag is specified)_
-  - _Purpose_: UI Layer, State Management (XState/Zustand), Framework Bindings, DI Containers (Inversify contexts), and UI hooks.
+  - _Purpose_: Framework Bindings (providers/contexts, hooks over the facade), screen flows and UI state (wizard steps, submit/retry — XState/Zustand allowed, business rules not), optionally its own `ContainerModule` (machine factories, view-model services). Like `core`, it never instantiates a `Container`: the composition root is the application (`apps/*`), where the one `Container` loads every domain's modules.
   - _Tags_: `scope:domain`, `type:features`
   - _Dependencies_: Can import from `libs/shared/*`, `libs/[domain-name]/contracts`, and `libs/[domain-name]/core`.
 
