@@ -450,6 +450,59 @@ Worth knowing:
 - **A read-only view is `Pick<KeyValueStore<T>, 'get'>`** rather than another named type.
 - **Neither is for a single value with no key** (a session, the active account) or for a question about the present (`getCurrentIdentity()`) — those are state and query ports, and calling them repositories is what blurs the word.
 
+### Resolver
+
+Every client talks to a server, and the code that does it drifts towards one class per domain — `AuthApi`, `AccountsApi` — with a method per endpoint. That class is a gateway nobody declared: use cases depend on all of it to call one method, a test has to stub seven methods to exercise one, and the HTTP client's name shows up in every constructor. A resolver is the smaller unit: **one implementation is one endpoint, and `resolve` is its only method.**
+
+```ts
+export interface Resolver<TInput, TOutput> {
+  resolve(input: TInput): Promise<TOutput>;
+}
+
+export interface HttpTransport {
+  send<TResponse>(request: HttpRequest): Promise<TResponse>;
+}
+
+export abstract class HttpResolver<
+  TInput,
+  TOutput,
+  TResponse = TOutput,
+> implements Resolver<TInput, TOutput> {
+  protected abstract readonly method: HttpMethod;
+  protected abstract url(input: TInput): string;
+  protected body(input: TInput): unknown; // nothing, by default
+  protected map(response: TResponse, input: TInput): TOutput; // identity, by default
+  resolve(input: TInput): Promise<TOutput>;
+}
+```
+
+The port is the interface, named for the call; the adapter is the class, which declares only what makes its endpoint different:
+
+```ts
+// application — a port per call, so a use case asks for exactly what it needs
+export type SignInPort = Resolver<Credentials, TokenSet>;
+export const SignInPort = { $: Symbol.for('auth/SignInPort') };
+
+// infrastructure — the adapter
+export class SignInResolver extends HttpResolver<Credentials, TokenSet> {
+  protected readonly method = HttpMethod.Post;
+  protected url(): string {
+    return '/auth/signin';
+  }
+  protected override body(credentials: Credentials): unknown {
+    return credentials;
+  }
+}
+```
+
+Worth knowing:
+
+- **No cache inside.** A resolver returns what the server said, every time. Whether that value is stale, or a refresh is in flight, is the business of the port that _reads_ the result and publishes it as a watch — see [Loadable](#loadable). A resolver that must be cached is wrapped in a decorator with the same `resolve`, so its callers never learn the difference.
+- **No headers, no retries, no credentials.** Those apply to every request the same way, so they live in the `HttpTransport` adapter — an interceptor on the workspace's HTTP client, typically — and an endpoint never mentions them.
+- **Failures pass through.** The resolver knows the url; it does not know that a 401 here means "wrong password" and a 401 there means "session expired". The use case that called `resolve` decides, and turns it into an [outcome](#facade).
+- **`void` in, `void` out are both fine.** `Resolver<void, void>` is a write with nothing to say back; `map` drops whatever the server returned.
+- **A resolver is a gateway, not a repository.** It owns nothing and looks nothing up by identity — see [Repository and KeyValueStore](#repository-and-keyvaluestore).
+
 ### EventBus
 
 Domains that must not know about each other still have to react to each other. A bus carries the facts one of them states, to whoever is listening — with no reply, no correlation id and no timeout, because a caller that needs an answer is asking a question and should call a facade instead.

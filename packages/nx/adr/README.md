@@ -26,6 +26,7 @@ violating it** (how a violation looks in a diff).
 | [TD-0013](./TD-0013-aggregate-is-the-unit-of-change.md)       | An aggregate is the unit of change                                       | modelling a change that spans objects, or adding a repository          |
 | [TD-0014](./TD-0014-the-bus-carries-facts-only.md)            | The bus carries facts, and never fails loudly                            | publishing an event, subscribing to one, or replacing the bus          |
 | [TD-0015](./TD-0015-announcing-is-not-part-of-the-write.md)   | Announcing is not part of the write                                      | publishing after a save, handling an event, or making a fact durable   |
+| [TD-0016](./TD-0016-one-resolver-per-endpoint.md)             | One resolver per endpoint, and no cache inside it                        | calling a server from `core`, or caching what it returned              |
 
 ## Status vocabulary
 

@@ -10,3 +10,4 @@ export * from './lib/event-transport.js';
 export * from './lib/event-bus.js';
 export * from './lib/repository.js';
 export * from './lib/facade.js';
+export * from './lib/resolver.js';
