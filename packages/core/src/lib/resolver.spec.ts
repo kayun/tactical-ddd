@@ -1,5 +1,6 @@
 import {
   HttpMethod,
+  type HttpQuery,
   HttpResolver,
   type HttpRequest,
   type HttpTransport,
@@ -10,6 +11,7 @@ type AccountDto = Readonly<{ id: string; display_name: string }>;
 type Account = Readonly<{ id: string; name: string }>;
 type Credentials = Readonly<{ username: string; password: string }>;
 type TokenSet = Readonly<{ access: string; refresh: string }>;
+type AccountFilter = Readonly<{ status: 'active' | 'closed'; page?: number }>;
 
 /** A transport that records what it was asked and answers what it was told. */
 const makeTransport = (
@@ -52,6 +54,27 @@ class SignInResolver extends HttpResolver<Credentials, TokenSet> {
 
   protected override body(credentials: Credentials): unknown {
     return credentials;
+  }
+}
+
+/** A list: the input becomes the query, one header and one flag belong to this endpoint only. */
+class ListAccountsResolver extends HttpResolver<AccountFilter, Account[]> {
+  protected readonly method = HttpMethod.Get;
+
+  protected url(): string {
+    return '/accounts';
+  }
+
+  protected override query(filter: AccountFilter): HttpQuery {
+    return { status: filter.status, page: filter.page };
+  }
+
+  protected override headers(): Readonly<Record<string, string>> {
+    return { 'If-None-Match': '"etag"' };
+  }
+
+  protected override meta(): Readonly<Record<string, unknown>> {
+    return { skipAuth: true };
   }
 }
 
@@ -116,6 +139,33 @@ describe('HttpResolver', () => {
       url: '/auth/signout',
       body: undefined,
     });
+  });
+
+  it('hands query, endpoint headers and interceptor flags to the transport', async () => {
+    const transport = makeTransport([]);
+    const resolver = new ListAccountsResolver(transport);
+
+    await resolver.resolve({ status: 'active' });
+
+    expect(transport.requests[0]).toEqual({
+      method: HttpMethod.Get,
+      url: '/accounts',
+      query: { status: 'active', page: undefined },
+      headers: { 'If-None-Match': '"etag"' },
+      body: undefined,
+      meta: { skipAuth: true },
+    });
+  });
+
+  it('sends nothing but method and url when a resolver declares nothing else', async () => {
+    const transport = makeTransport({ success: true });
+
+    await new SignOutResolver(transport).resolve();
+
+    const request = transport.requests[0];
+    expect(request.query).toBeUndefined();
+    expect(request.headers).toBeUndefined();
+    expect(request.meta).toBeUndefined();
   });
 
   it('lets a transport failure through untouched', async () => {

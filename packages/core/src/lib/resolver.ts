@@ -39,15 +39,29 @@ export enum HttpMethod {
   Delete = 'DELETE',
 }
 
+/** A query string before it is one: `undefined` entries are dropped, the rest are stringified. */
+export type HttpQuery = Readonly<
+  Record<string, string | number | boolean | undefined>
+>;
+
 /**
- * What a resolver hands to the transport. No headers, no retries, no
- * credentials: those are the transport's business, applied the same way to
- * every request, so an endpoint never has to know about them.
+ * What a resolver hands to the transport. Everything here is about *this*
+ * endpoint: its verb, its path, the query it filters by, the headers only it
+ * needs (`Idempotency-Key`, `If-None-Match`), its body. What applies to every
+ * request the same way — credentials, retries, a language header — is the
+ * transport's business and never appears here.
+ *
+ * `meta` is not sent. It is a bag of flags the transport's interceptors read —
+ * "skip the session header on this one", "already retried" — so an endpoint
+ * can opt out of a policy without the policy knowing the endpoint.
  */
 export type HttpRequest = Readonly<{
   method: HttpMethod;
   url: string;
+  query?: HttpQuery;
+  headers?: Readonly<Record<string, string>>;
   body?: unknown;
+  meta?: Readonly<Record<string, unknown>>;
 }>;
 
 /**
@@ -86,8 +100,31 @@ export abstract class HttpResolver<
   /** The url of this endpoint, built from the input when the path carries part of it. */
   protected abstract url(input: TInput): string;
 
+  /** The query string. Nothing by default. */
+  protected query(input: TInput): HttpQuery | undefined {
+    void input;
+
+    return undefined;
+  }
+
+  /** Headers only this endpoint needs. Nothing by default: the transport adds the common ones. */
+  protected headers(
+    input: TInput,
+  ): Readonly<Record<string, string>> | undefined {
+    void input;
+
+    return undefined;
+  }
+
   /** The request body. Nothing by default: a read has none, a write overrides. */
   protected body(input: TInput): unknown {
+    void input;
+
+    return undefined;
+  }
+
+  /** Flags for the transport's interceptors. Nothing by default. */
+  protected meta(input: TInput): Readonly<Record<string, unknown>> | undefined {
     void input;
 
     return undefined;
@@ -104,7 +141,10 @@ export abstract class HttpResolver<
     const response = await this.transport.send<TResponse>({
       method: this.method,
       url: this.url(input),
+      query: this.query(input),
+      headers: this.headers(input),
       body: this.body(input),
+      meta: this.meta(input),
     });
 
     return this.map(response, input);

@@ -67,8 +67,10 @@ every time, and lets a transport failure through untouched. Three things follow:
   stays one thing.
 - **Cross-cutting concerns live in the transport.** Credentials, retries,
   refresh-on-401 apply to every request the same way, so they are an
-  interceptor on the `HttpTransport` adapter. An endpoint never mentions a
-  header.
+  interceptor on the `HttpTransport` adapter. A resolver declares only what
+  is about its own endpoint — verb, path, query, body, a header only it needs
+  such as `Idempotency-Key` — and opts out of a transport policy through
+  `meta` flags the interceptors read, never by reimplementing the policy.
 
 The use case that called `resolve` is the one that reads the failure. Which
 status means "wrong password" and which means "try later" is a domain decision,
@@ -120,6 +122,8 @@ and it is made once, in `application`, where it becomes an outcome
   ("force", "skipCache").
 - A `Map`, a timestamp or a TTL inside a resolver.
 - A url, a status code or an HTTP client's name outside `infrastructure`.
+- An `Authorization` or `Accept-Language` header set by a resolver — a policy
+  that applies to every request, written once per endpoint.
 - A resolver injected into a screen, a component or a facade — the facade
   calls a use case, the use case calls the resolver.
 - A cache key declared on an endpoint class.

@@ -470,7 +470,10 @@ export abstract class HttpResolver<
 > implements Resolver<TInput, TOutput> {
   protected abstract readonly method: HttpMethod;
   protected abstract url(input: TInput): string;
+  protected query(input: TInput): HttpQuery | undefined; // nothing, by default
+  protected headers(input: TInput): Record<string, string> | undefined; // nothing, by default
   protected body(input: TInput): unknown; // nothing, by default
+  protected meta(input: TInput): Record<string, unknown> | undefined; // nothing, by default
   protected map(response: TResponse, input: TInput): TOutput; // identity, by default
   resolve(input: TInput): Promise<TOutput>;
 }
@@ -498,7 +501,8 @@ export class SignInResolver extends HttpResolver<Credentials, TokenSet> {
 Worth knowing:
 
 - **No cache inside.** A resolver returns what the server said, every time. Whether that value is stale, or a refresh is in flight, is the business of the port that _reads_ the result and publishes it as a watch — see [Loadable](#loadable). A resolver that must be cached is wrapped in a decorator with the same `resolve`, so its callers never learn the difference.
-- **No headers, no retries, no credentials.** Those apply to every request the same way, so they live in the `HttpTransport` adapter — an interceptor on the workspace's HTTP client, typically — and an endpoint never mentions them.
+- **Only what is about this endpoint.** Its verb, path, query, body, and the headers only it needs (`Idempotency-Key`, `If-None-Match`). Credentials, retries, a language header apply to every request the same way, so they live in the `HttpTransport` adapter — an interceptor on the workspace's HTTP client, typically — and an endpoint never mentions them.
+- **`meta` is for opting out of a policy.** It is not sent; the transport's interceptors read it. `{ skipAuth: true }` on a sign-in endpoint tells the session interceptor to stay out, without the interceptor knowing which endpoint that is.
 - **Failures pass through.** The resolver knows the url; it does not know that a 401 here means "wrong password" and a 401 there means "session expired". The use case that called `resolve` decides, and turns it into an [outcome](#facade).
 - **`void` in, `void` out are both fine.** `Resolver<void, void>` is a write with nothing to say back; `map` drops whatever the server returned.
 - **A resolver is a gateway, not a repository.** It owns nothing and looks nothing up by identity — see [Repository and KeyValueStore](#repository-and-keyvaluestore).
