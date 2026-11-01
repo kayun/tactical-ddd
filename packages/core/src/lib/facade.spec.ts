@@ -19,6 +19,8 @@ type BeneficiariesSpec = Readonly<{
   };
   watches: {
     observeAll(): Watch<Beneficiary[]>;
+    /** No argument to pass, so it reads like state. */
+    readonly count$: Watch<number>;
   };
   commands: {
     rename(id: string, name: string): Command;
@@ -44,10 +46,12 @@ const alice: Beneficiary = { id: '1', name: 'Alice' };
 
 const makeFacade = (): BeneficiariesFacade => {
   const beneficiaries = new Map<string, Beneficiary>([[alice.id, alice]]);
+  const count$ = readyOnce(beneficiaries.size);
 
   return {
     findOne: (id) => Promise.resolve(beneficiaries.get(id) ?? null),
     observeAll: () => readyOnce([...beneficiaries.values()]),
+    count$,
     rename: async (id, name) => {
       const found = beneficiaries.get(id);
 
@@ -84,6 +88,22 @@ describe('Facade', () => {
     expect(() => subscription.unsubscribe()).not.toThrow();
   });
 
+  it('publishes a parameterless watch as a property', () => {
+    const states: Loadable<number>[] = [];
+
+    makeFacade().count$.subscribe((state) => states.push(state));
+
+    expect(states).toEqual([
+      { status: LoadStatus.Ready, value: 1, stale: false },
+    ]);
+  });
+
+  it('reads a property watch as one source', () => {
+    const facade = makeFacade();
+
+    expect(facade.count$).toBe(facade.count$);
+  });
+
   it('narrows a facade to its reads', () => {
     const reads: QueriesOf<BeneficiariesSpec> = makeFacade();
 
@@ -99,6 +119,7 @@ describe('Facade', () => {
 
     expect(typeof writes.rename).toBe('function');
     expect(typeof watches.observeAll).toBe('function');
+    expect(typeof watches.count$.subscribe).toBe('function');
     // @ts-expect-error — a query is not a command
     expect(typeof writes.findOne).toBe('function');
   });

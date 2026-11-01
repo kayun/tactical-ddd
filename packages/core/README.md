@@ -363,6 +363,7 @@ export type BeneficiariesSpec = {
   };
   watches: {
     observeAll(): Watch<Beneficiary[]>;
+    readonly count$: Watch<number>; // nothing to pass, so it reads like state
   };
   commands: {
     rename(id: string, name: string): Command;
@@ -393,6 +394,7 @@ const state = useObserved(facade.observeAll());
 Worth knowing:
 
 - **A query and a watch are not interchangeable.** A watch hands a new subscriber the current state immediately, which is why it suits a screen or a state machine; a query answers once and rejects on failure, which is what a use case in another domain wants. Reaching for `firstValueFrom` around a facade means the method should have been a query.
+- **A watch with nothing to select is a property.** `count$` reads like the state it is; a watch that selects what to observe (`observeOrder(id)`) stays a method. Build the property's stream once (with rxjs, `shareReplay({ bufferSize: 1, refCount: true })`), so every read is the same source and a caller needs no memo; a getter that builds a new stream on every read looks like state but is not.
 - **`Loadable` appears only on watches**, because only a stream has freshness to report. A query's failure is a rejection, so the caller never unwraps a union to get at a value.
 - **The result is an alias, not an interface.** There is no body to declare a fourth, ungrouped method in, and an invented group name (`events`) is rejected rather than silently dropped — notifications belong on an event bus, not on a facade.
 - **`QueriesOf`, `WatchesOf`, and `CommandsOf`** narrow a facade to one slice, so a component that must not write can be handed the reads alone.

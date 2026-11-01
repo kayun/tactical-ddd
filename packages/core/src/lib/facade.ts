@@ -65,12 +65,23 @@ export type Command<TOutcome extends AnyOutcome | void = void> =
 type Methods<TReturn> = Record<string, (...args: never[]) => TReturn>;
 
 /**
- * The three kinds of method a facade may publish. Groups are optional: a domain
+ * A watch that needs no argument is a property (`session$`), read like state:
+ * one stream built once, so every read is the same source. A watch that
+ * selects what to watch stays a method (`observeOrder(id)`), and the caller
+ * memoises what it returns.
+ */
+type Watches = Record<
+  string,
+  Watch<unknown> | ((...args: never[]) => Watch<unknown>)
+>;
+
+/**
+ * The three kinds of member a facade may publish. Groups are optional: a domain
  * with nothing to watch simply omits `watches`.
  */
 export type FacadeSpec = Readonly<{
   queries?: Methods<Query<unknown>>;
-  watches?: Methods<Watch<unknown>>;
+  watches?: Watches;
   commands?: Methods<Command<AnyOutcome | void>>;
 }>;
 

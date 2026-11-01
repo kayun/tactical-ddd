@@ -129,6 +129,10 @@ object, use case, or repository port takes or returns a `Loadable`.
 - Watch methods are named for observation (`observe*`/`watch*`) and return
   `Watch<T>`. Arguments are part of the call (`observeOne(id)`), and the caller
   memoises the returned source — a new reference is a new subscription.
+- A watch with nothing to select is a **property** named with `$`
+  (`session$: Watch<T>`), read like the state it is. Its stream is built once —
+  with rxjs, `shareReplay({ bufferSize: 1, refCount: true })` — so every read is
+  the same source and the caller needs no memo.
 - **A watch never terminates on failure.** A transport error becomes
   `LoadStatus.Failed`, not the observer's `error` channel: the first failure
   would otherwise end the subscription and the screen would stop updating for
@@ -168,6 +172,9 @@ object, use case, or repository port takes or returns a `Loadable`.
 - A screen reading `state.value` without switching on `status`, or with a `!`.
 - A command returning `Loadable`, a watch returning a `Promise`, or a query
   returning a stream.
+- A property watch implemented as a getter that builds a new stream on every
+  read, or a `useMemo` around one in a consumer — the stream should be built
+  once.
 
 ## Related
 
