@@ -1,3 +1,13 @@
+## 0.4.0 (2026-11-01)
+
+### 🚀 Features
+
+- **core:** allow a parameterless watch as a facade property ([be11b96](https://github.com/kayun/tactical-ddd/commit/be11b96))
+
+### ❤️ Thank You
+
+- Artyom Kayun @kayun
+
 ## 0.3.1 (2026-09-23)
 
 This was a version bump only, there were no code changes.
